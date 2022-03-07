@@ -1,11 +1,26 @@
 import os
 import pickle
 import random
+from enum import IntEnum
 
 import numpy as np
 
+ACTIONS = ["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
 
-ACTIONS = ['UP', 'RIGHT', 'DOWN', 'LEFT', 'WAIT', 'BOMB']
+
+class DirectionEnum(IntEnum):
+    UP = 0
+    RIGHT = 1
+    DOWN = 2
+    LEFT = 3
+
+
+DIRECTION_MAP = {
+    DirectionEnum.UP: (0, -1),
+    DirectionEnum.RIGHT: (1, 0),
+    DirectionEnum.DOWN: (0, 1),
+    DirectionEnum.LEFT: (-1, 0),
+}
 
 
 def setup(self):
@@ -24,8 +39,17 @@ def setup(self):
     """
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
-        weights = np.random.rand(len(ACTIONS))
-        self.model = weights / weights.sum()
+
+        self.model = np.array(
+            [
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+                [0, 0, 0, 0],
+            ]
+        )
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -42,11 +66,13 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
     # todo Exploration vs exploitation
-    random_prob = .1
+    random_prob = 0.1
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
         # 80%: walk in any direction. 10% wait. 10% bomb.
-        return np.random.choice(ACTIONS, p=[.2, .2, .2, .2, .1, .1])
+        return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
+
+    features: np.ndarray = state_to_features(game_state)
 
     self.logger.debug("Querying model for action.")
     return np.random.choice(ACTIONS, p=self.model)
@@ -70,10 +96,35 @@ def state_to_features(game_state: dict) -> np.array:
     if game_state is None:
         return None
 
-    # For example, you could construct several channels of equal shape, ...
-    channels = []
-    channels.append(...)
-    # concatenate them as a feature tensor (they must have the same shape), ...
-    stacked_channels = np.stack(channels)
-    # and return them as a vector
-    return stacked_channels.reshape(-1)
+    # self x and self y coordinates
+    pos = game_state["self"][3]
+    sx, sy = pos
+
+    coins = game_state["coins"]
+    walls = game_state["field"]
+
+    # Use the coins absolute position to determine wich direction to go
+    coins_up = sum(y < sy for _, y in coins)
+    coins_right = sum(x > sx for x, _ in coins)
+    coins_down = sum(y > sy for _, y in coins)
+    coins_left = sum(x < sx for x, _ in coins)
+    coins_directions = np.array([coins_up, coins_right, coins_down, coins_left])
+
+    # Encode ['UP', 'RIGHT', 'DOWN', 'LEFT'] as ints, either 1 or 0
+    direction_feature = np.zeros(4)
+    direction: list = np.argsort(coins_directions).tolist()[::-1]
+
+    d: int = 0
+    while direction:
+        d = direction.pop(0)  # get the next best direction
+        # check if the optimal direction has a wall
+        # We need to reverse the np.add because Walls is
+        # Y, X indexed
+        _y, _x = np.add(pos, DIRECTION_MAP[d])[::-1]
+        is_wall = walls[_y, _x] != 0
+        if not is_wall:
+            break
+
+    direction_feature[d] = 1
+
+    return direction_feature
