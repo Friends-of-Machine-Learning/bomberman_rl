@@ -53,6 +53,7 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
 
         self.model = np.zeros((6, 4))
+        self.means = None  # ToDo: np.array with means
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:

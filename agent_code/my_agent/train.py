@@ -143,7 +143,9 @@ def q_function_train(
     states_new = np.array([x.next_feature for x in transitions])
 
     q_vals = rewards + gamma * q_func(model, states_new)
-    q_vals = q_vals - np.mean(q_vals)
+    q_vals = q_vals - np.mean(
+        q_vals
+    )  # ToDo: Use these means to determine the self.means
 
     beta = model[action_index]
     model[action_index] = beta + alpha * np.mean(
