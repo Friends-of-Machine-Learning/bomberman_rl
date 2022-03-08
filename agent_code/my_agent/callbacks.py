@@ -1,6 +1,7 @@
 import os
 import pickle
 import random
+from enum import Enum
 from enum import IntEnum
 
 import numpy as np
@@ -14,6 +15,17 @@ class DirectionEnum(IntEnum):
     DOWN = 2
     LEFT = 3
 
+
+class ActionNames(Enum):
+    UP = "UP"
+    RIGHT = "RIGHT"
+    DOWN = "DOWN"
+    LEFT = "LEFT"
+    WAIT = "WAIT"
+    BOMB = "BOMB"
+
+
+ACTION_TO_INDEX = {"UP": 0, "RIGHT": 1, "DOWN": 2, "LEFT": 3, "WAIT": 4, "BOMB": 5}
 
 DIRECTION_MAP = {
     DirectionEnum.UP: (0, -1),
@@ -40,16 +52,7 @@ def setup(self):
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
 
-        self.model = np.array(
-            [
-                [0, 0, 0, 0],
-                [0, 0, 0, 0],
-                [0, 0, 0, 0],
-                [0, 0, 0, 0],
-                [0, 0, 0, 0],
-                [0, 0, 0, 0],
-            ]
-        )
+        self.model = np.zeros((6, 4))
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
@@ -75,7 +78,8 @@ def act(self, game_state: dict) -> str:
     features: np.ndarray = state_to_features(game_state)
 
     self.logger.debug("Querying model for action.")
-    return np.random.choice(ACTIONS, p=self.model)
+
+    return ACTIONS[np.argmax(features @ self.model.T)]
 
 
 def state_to_features(game_state: dict) -> np.array:

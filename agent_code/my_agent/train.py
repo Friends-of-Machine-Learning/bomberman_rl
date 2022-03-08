@@ -3,14 +3,16 @@ from collections import deque
 from collections import namedtuple
 from typing import List
 
+import numpy as np
 from sklearn.linear_model import LinearRegression
 
 import events as e
+from .callbacks import ACTION_TO_INDEX
 from .callbacks import state_to_features
 
 # This is only an example!
 Transition = namedtuple(
-    "Transition", ("action", "feature", "steps", "rounds", "reward")
+    "Transition", ("action", "feature", "next_feature", "steps", "rounds", "reward")
 )
 
 # Hyper parameters -- DO modify
@@ -66,13 +68,16 @@ def game_events_occurred(
     if ...:
         events.append(PLACEHOLDER_EVENT)
 
+    if old_game_state is None or new_game_state is None:
+        return
     # state_to_features is defined in callbacks.py
     self.transitions.append(
         Transition(
             self_action,
             state_to_features(old_game_state),
-            old_game_state["step"],
-            old_game_state["round"],
+            state_to_features(new_game_state),
+            old_game_state["step"] if old_game_state else 0,
+            old_game_state["round"] if old_game_state else 0,
             reward_from_events(self, events),
         )
     )
@@ -94,21 +99,12 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(
         f'Encountered event(s) {", ".join(map(repr, events))} in final step'
     )
-    self.transitions.append(
-        Transition(
-            last_action,
-            state_to_features(last_game_state),
-            last_game_state["step"],
-            last_game_state["round"],
-            reward_from_events(self, events),
-        )
-    )
 
     transition_for_action = {}
     for transition in self.transitions:
         transition_for_action.setdefault(transition.action, []).append(transition)
-
-    self.LR: LinearRegression
+    for action, trans in transition_for_action.items():
+        self.model = q_function_train(self.model, trans, ACTION_TO_INDEX[action])
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
@@ -132,3 +128,30 @@ def reward_from_events(self, events: List[str]) -> int:
             reward_sum += game_rewards[event]
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
+
+
+def q_function_train(
+    model: np.ndarray,
+    transitions: List[Transition],
+    action_index: int,
+    gamma: float = 0.8,
+    alpha: float = 0.1,
+) -> np.ndarray:
+    rewards = np.array([x.reward for x in transitions])
+    states_old = np.array([x.feature for x in transitions])
+
+    states_new = np.array([x.next_feature for x in transitions])
+
+    q_vals = rewards + gamma * q_func(model, states_new)
+    q_vals = q_vals - np.mean(q_vals)
+
+    beta = model[action_index]
+    model[action_index] = beta + alpha * np.mean(
+        states_old * (q_vals - states_old @ beta)[:, None], axis=0
+    )
+
+    return model
+
+
+def q_func(model: np.ndarray, state) -> np.ndarray:
+    return np.max(state @ model.T, axis=1)
