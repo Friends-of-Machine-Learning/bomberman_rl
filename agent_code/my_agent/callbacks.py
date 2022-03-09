@@ -1,38 +1,12 @@
 import os
 import pickle
 import random
-from enum import Enum
-from enum import IntEnum
 
 import numpy as np
 
+from . import features
+
 ACTIONS = ["UP", "RIGHT", "DOWN", "LEFT", "WAIT", "BOMB"]
-
-
-class DirectionEnum(IntEnum):
-    UP = 0
-    RIGHT = 1
-    DOWN = 2
-    LEFT = 3
-
-
-class ActionNames(Enum):
-    UP = "UP"
-    RIGHT = "RIGHT"
-    DOWN = "DOWN"
-    LEFT = "LEFT"
-    WAIT = "WAIT"
-    BOMB = "BOMB"
-
-
-ACTION_TO_INDEX = {"UP": 0, "RIGHT": 1, "DOWN": 2, "LEFT": 3, "WAIT": 4, "BOMB": 5}
-
-DIRECTION_MAP = {
-    DirectionEnum.UP: (0, -1),
-    DirectionEnum.RIGHT: (1, 0),
-    DirectionEnum.DOWN: (0, 1),
-    DirectionEnum.LEFT: (-1, 0),
-}
 
 
 def setup(self):
@@ -49,15 +23,24 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
+    self.features_used = [
+        features.CoinForceFeature(self),
+        features.WallInDirectionFeature(self),
+        # features.RandomFeature(self)  # If feature is not wanted, remove from list, thats it.
+    ]
+
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
 
-        self.model = np.zeros((6, 4))
-        self.means = None  # ToDo: np.array with means
+        feature_size = sum(f.get_feature_size() for f in self.features_used)
+        self.model = np.zeros((6, feature_size))
+        self.means = np.zeros(6)
+        self.n_mean_instances = np.zeros(6)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
-            self.model = pickle.load(file)
+            self.model, self.means = pickle.load(file)
+    self.last_action = np.zeros(6)
 
 
 def act(self, game_state: dict) -> str:
@@ -76,14 +59,18 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
-    features: np.ndarray = state_to_features(game_state)
+    features: np.ndarray = state_to_features(self, game_state)
 
     self.logger.debug("Querying model for action.")
 
-    return ACTIONS[np.argmax(features @ self.model.T)]
+    self.last_action = np.zeros(6)
+    action_index = np.argmax(features @ self.model.T + self.means)
+    next_action = ACTIONS[action_index]
+    self.last_action[action_index] = 1
+    return next_action
 
 
-def state_to_features(game_state: dict) -> np.array:
+def state_to_features(self, game_state: dict) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
 
@@ -101,35 +88,11 @@ def state_to_features(game_state: dict) -> np.array:
     if game_state is None:
         return None
 
-    # self x and self y coordinates
-    pos = game_state["self"][3]
-    sx, sy = pos
+    x_feature = []
 
-    coins = game_state["coins"]
-    walls = game_state["field"]
+    feature: features.BaseFeature
+    for feature in self.features_used:
+        x = feature.state_to_feature(self, game_state)
+        x_feature.append(x)
 
-    # Use the coins absolute position to determine wich direction to go
-    coins_up = sum(y < sy for _, y in coins)
-    coins_right = sum(x > sx for x, _ in coins)
-    coins_down = sum(y > sy for _, y in coins)
-    coins_left = sum(x < sx for x, _ in coins)
-    coins_directions = np.array([coins_up, coins_right, coins_down, coins_left])
-
-    # Encode ['UP', 'RIGHT', 'DOWN', 'LEFT'] as ints, either 1 or 0
-    direction_feature = np.zeros(4)
-    direction: list = np.argsort(coins_directions).tolist()[::-1]
-
-    d: int = 0
-    while direction:
-        d = direction.pop(0)  # get the next best direction
-        # check if the optimal direction has a wall
-        # We need to reverse the np.add because Walls is
-        # Y, X indexed
-        _y, _x = np.add(pos, DIRECTION_MAP[d])[::-1]
-        is_wall = walls[_y, _x] != 0
-        if not is_wall:
-            break
-
-    direction_feature[d] = 1
-
-    return direction_feature
+    return np.concatenate(x_feature)

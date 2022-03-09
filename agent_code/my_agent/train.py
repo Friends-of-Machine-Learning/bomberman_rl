@@ -4,11 +4,12 @@ from collections import namedtuple
 from typing import List
 
 import numpy as np
-from sklearn.linear_model import LinearRegression
 
 import events as e
-from .callbacks import ACTION_TO_INDEX
+from .callbacks import ACTIONS
 from .callbacks import state_to_features
+from .utils import ACTION_TO_INDEX
+from .utils import OPPOSITE_DIRECTION
 
 # This is only an example!
 Transition = namedtuple(
@@ -16,11 +17,13 @@ Transition = namedtuple(
 )
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 1000000  # keep only ... last transitions
+TRANSITION_HISTORY_SIZE = 800  # keep only ... last transitions
+END_TRANSITION_HISTORY_SIZE = 20  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 # Events
 PLACEHOLDER_EVENT = "PLACEHOLDER"
+BACKTRACK_EVENT = "BACKTRACK"
 
 
 def setup_training(self):
@@ -34,7 +37,7 @@ def setup_training(self):
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
-    self.LR = LinearRegression()
+    self.end_transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
 
 
 def game_events_occurred(
@@ -64,23 +67,25 @@ def game_events_occurred(
         f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}'
     )
 
-    # Idea: Add your own events to hand out rewards
-    if ...:
-        events.append(PLACEHOLDER_EVENT)
-
     if old_game_state is None or new_game_state is None:
         return
     # state_to_features is defined in callbacks.py
     self.transitions.append(
         Transition(
             self_action,
-            state_to_features(old_game_state),
-            state_to_features(new_game_state),
+            state_to_features(self, old_game_state),
+            state_to_features(self, new_game_state),
             old_game_state["step"] if old_game_state else 0,
             old_game_state["round"] if old_game_state else 0,
             reward_from_events(self, events),
         )
     )
+
+    if (
+        len(self.transitions) > 2
+        and OPPOSITE_DIRECTION[self_action] == self.transitions[-2].action
+    ):
+        events.append(BACKTRACK_EVENT)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -100,15 +105,36 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         f'Encountered event(s) {", ".join(map(repr, events))} in final step'
     )
 
+    self.end_transitions.append(
+        Transition(
+            last_action,
+            state_to_features(self, last_game_state),
+            None,
+            last_game_state["step"],
+            last_game_state["round"],
+            reward_from_events(self, events),
+        )
+    )
+
+    # Call Q-Function for each action, and its transitions
+    end_transition_for_action = {}
+    for transition in self.end_transitions:
+        end_transition_for_action.setdefault(transition.action, []).append(transition)
     transition_for_action = {}
     for transition in self.transitions:
         transition_for_action.setdefault(transition.action, []).append(transition)
-    for action, trans in transition_for_action.items():
-        self.model = q_function_train(self.model, trans, ACTION_TO_INDEX[action])
+
+    for action in ACTIONS:
+        q_function_train(
+            self,
+            transition_for_action.get(action, []),
+            end_transition_for_action.get(action, []),
+            ACTION_TO_INDEX[action],
+        )
 
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
-        pickle.dump(self.model, file)
+        pickle.dump((self.model, self.means), file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -119,8 +145,11 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
-        e.COIN_COLLECTED: 1,
+        e.COIN_COLLECTED: 5,
         e.KILLED_SELF: -5,
+        e.INVALID_ACTION: -0.2,
+        e.WAITED: -1,
+        BACKTRACK_EVENT: -0.1,
     }
     reward_sum = 0
     for event in events:
@@ -131,28 +160,42 @@ def reward_from_events(self, events: List[str]) -> int:
 
 
 def q_function_train(
-    model: np.ndarray,
+    self,
     transitions: List[Transition],
+    end_transitions: List[Transition],
     action_index: int,
-    gamma: float = 0.8,
+    gamma: float = 0.9,
     alpha: float = 0.1,
-) -> np.ndarray:
+) -> None:
+    model = self.model
+    if not transitions:
+        return
+
     rewards = np.array([x.reward for x in transitions])
     states_old = np.array([x.feature for x in transitions])
-
     states_new = np.array([x.next_feature for x in transitions])
+    states_end = np.array([x.feature for x in end_transitions])
+    q_vals_end = np.array([x.reward for x in end_transitions])
 
     q_vals = rewards + gamma * q_func(model, states_new)
-    q_vals = q_vals - np.mean(
-        q_vals
-    )  # ToDo: Use these means to determine the self.means
+
+    if len(states_end.shape) > 1:
+        q_vals = np.concatenate((q_vals, q_vals_end))
+        states_old = np.concatenate((states_old, states_end))
+
+    self.means[action_index] = (
+        self.n_mean_instances[action_index] * self.means[action_index] + np.sum(q_vals)
+    ) / (self.n_mean_instances[action_index] + len(q_vals))
+    self.n_mean_instances[action_index] += len(q_vals)
+
+    q_vals -= self.means[action_index]
 
     beta = model[action_index]
     model[action_index] = beta + alpha * np.mean(
         states_old * (q_vals - states_old @ beta)[:, None], axis=0
     )
 
-    return model
+    self.model = model
 
 
 def q_func(model: np.ndarray, state) -> np.ndarray:
