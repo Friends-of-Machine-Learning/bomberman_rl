@@ -49,7 +49,6 @@ class CoinForceFeature(BaseFeature):
 
     def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
         pos = game_state["self"][3]
-
         coins = game_state["coins"]
 
         if coins:
@@ -80,23 +79,23 @@ class WallInDirectionFeature(BaseFeature):
         # 1 if wall in that direction, else 0
         return np.array(
             (
-                WallInDirectionFeature._is_wall_in_direction(
+                WallInDirectionFeature.is_wall_in_direction(
                     pos, DirectionEnum.UP, walls
                 ),
-                WallInDirectionFeature._is_wall_in_direction(
+                WallInDirectionFeature.is_wall_in_direction(
                     pos, DirectionEnum.RIGHT, walls
                 ),
-                WallInDirectionFeature._is_wall_in_direction(
+                WallInDirectionFeature.is_wall_in_direction(
                     pos, DirectionEnum.DOWN, walls
                 ),
-                WallInDirectionFeature._is_wall_in_direction(
+                WallInDirectionFeature.is_wall_in_direction(
                     pos, DirectionEnum.LEFT, walls
                 ),
             )
         )
 
     @staticmethod
-    def _is_wall_in_direction(
+    def is_wall_in_direction(
         agent_pos: Tuple[int, int], direction: DirectionEnum, walls: np.ndarray
     ) -> int:
         _y, _x = np.add(agent_pos, DIRECTION_MAP[direction])[::-1]
@@ -109,3 +108,75 @@ class RandomFeature(BaseFeature):
 
     def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
         return np.array([np.random.randint(-10, 10)])
+
+
+class ClosestCoinFeature(BaseFeature):
+    """
+    Finds the closest coin to the agent and one hot encodes the direction as a Feature.
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 4)
+
+    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+        coins = game_state["coins"]
+        pos = game_state["self"][3]
+
+        if not coins:
+            return np.array([0, 0, 0, 0])
+
+        pos = game_state["self"][3]
+        sx, sy = pos
+
+        coins = game_state["coins"]
+        walls = game_state["field"]
+
+        coin_connection = np.subtract(coins, pos)
+        coin_dist = np.linalg.norm(coin_connection, axis=1)
+
+        closest_coin_index = np.argmin(coin_dist)
+
+        closest_coin_pos = coins[closest_coin_index]
+
+        cx, cy = closest_coin_pos
+        up = int(cy < sy)
+        right = int(cx > sx)
+        down = int(cy > sy)
+        left = int(cx < sx)
+
+        up = (
+            up
+            if not WallInDirectionFeature.is_wall_in_direction(
+                pos, DirectionEnum.UP, walls
+            )
+            else 0
+        )
+        down = (
+            down
+            if not WallInDirectionFeature.is_wall_in_direction(
+                pos, DirectionEnum.DOWN, walls
+            )
+            else 0
+        )
+        left = (
+            left
+            if not WallInDirectionFeature.is_wall_in_direction(
+                pos, DirectionEnum.LEFT, walls
+            )
+            else 0
+        )
+        right = (
+            right
+            if not WallInDirectionFeature.is_wall_in_direction(
+                pos, DirectionEnum.RIGHT, walls
+            )
+            else 0
+        )
+
+        dirs = [up, right, down, left]
+
+        if not all([up, right, down, left]):
+            rand_dir = np.random.randint(0, 4)
+            dirs[rand_dir] = 1
+
+        return np.array(dirs)

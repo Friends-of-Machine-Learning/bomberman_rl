@@ -147,7 +147,7 @@ def reward_from_events(self, events: List[str]) -> int:
     game_rewards = {
         e.COIN_COLLECTED: 5,
         e.KILLED_SELF: -5,
-        e.INVALID_ACTION: -0.2,
+        e.INVALID_ACTION: -5,
         e.WAITED: -1,
         BACKTRACK_EVENT: -0.1,
     }

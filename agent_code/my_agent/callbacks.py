@@ -25,8 +25,9 @@ def setup(self):
     """
     self.features_used = [
         features.CoinForceFeature(self),
-        features.WallInDirectionFeature(self),
+        # features.WallInDirectionFeature(self),
         # features.RandomFeature(self)  # If feature is not wanted, remove from list, thats it.
+        features.ClosestCoinFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
