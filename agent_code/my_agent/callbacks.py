@@ -24,10 +24,10 @@ def setup(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     self.features_used = [
-        features.CoinForceFeature(self),
+        # features.CoinForceFeature(self),
         # features.WallInDirectionFeature(self),
-        # features.RandomFeature(self)  # If feature is not wanted, remove from list, thats it.
-        features.ClosestCoinFeature(self),
+        # features.ClosestCoinFeature(self),
+        features.BFSCoinFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
