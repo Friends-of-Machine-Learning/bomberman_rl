@@ -24,6 +24,7 @@ RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 # Events
 PLACEHOLDER_EVENT = "PLACEHOLDER"
 BACKTRACK_EVENT = "BACKTRACK"
+RUNAWAY_EVENT = "RUNAWAY"
 
 
 def setup_training(self):
@@ -75,8 +76,8 @@ def game_events_occurred(
             self_action,
             state_to_features(self, old_game_state),
             state_to_features(self, new_game_state),
-            old_game_state["step"] if old_game_state else 0,
-            old_game_state["round"] if old_game_state else 0,
+            old_game_state["step"],
+            old_game_state["round"],
             reward_from_events(self, events),
         )
     )
@@ -86,6 +87,22 @@ def game_events_occurred(
         and OPPOSITE_DIRECTION[self_action] == self.transitions[-2].action
     ):
         events.append(BACKTRACK_EVENT)
+
+    # Compare Bomb distance to agent from old and new game state
+    # If agent moved away from bomb add event
+    if old_game_state["bombs"] and new_game_state["bombs"]:
+        old_bombs = [(x, y) for (x, y), _ in old_game_state["bombs"]]
+        con_old = np.subtract(old_bombs, old_game_state["self"][3])
+        dist_old = np.linalg.norm(con_old)
+        old_mean = np.mean(dist_old)
+
+        new_bombs = [(x, y) for (x, y), _ in new_game_state["bombs"]]
+        con_new = np.subtract(new_bombs, new_game_state["self"][3])
+        dist_new = np.linalg.norm(con_new)
+        new_mean = np.mean(dist_new)
+
+        if new_mean > old_mean:
+            events.append(RUNAWAY_EVENT)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
@@ -146,10 +163,12 @@ def reward_from_events(self, events: List[str]) -> int:
     """
     game_rewards = {
         e.COIN_COLLECTED: 5,
-        e.KILLED_SELF: -5,
+        # e.CRATE_DESTROYED: 2,
+        # RUNAWAY_EVENT: 0.5,
+        # e.KILLED_SELF: -5,
         e.BOMB_DROPPED: 1,
-        e.INVALID_ACTION: -5,
-        e.WAITED: -1,
+        e.INVALID_ACTION: -0.2,
+        e.WAITED: -0.2,
         BACKTRACK_EVENT: -0.1,
     }
     reward_sum = 0
@@ -192,6 +211,7 @@ def q_function_train(
     q_vals -= self.means[action_index]
 
     beta = model[action_index]
+
     model[action_index] = beta + alpha * np.mean(
         states_old * (q_vals - states_old @ beta)[:, None], axis=0
     )

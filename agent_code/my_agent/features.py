@@ -1,13 +1,17 @@
 from abc import ABC
 from abc import abstractmethod
 from types import SimpleNamespace
+from typing import List
 from typing import Tuple
+from typing import Union
 
 import numpy as np
 
 import settings as s
 from .utils import DIRECTION_MAP
 from .utils import DirectionEnum
+
+FeatureSpace = Union[np.ndarray, List[Union[float, int]]]
 
 
 class BaseFeature(ABC):
@@ -23,7 +27,9 @@ class BaseFeature(ABC):
         return self.feature_size
 
     @abstractmethod
-    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
         """
         Takes the agent and current game_state to calculate a new feature array.
 
@@ -48,7 +54,9 @@ class CoinForceFeature(BaseFeature):
     def __init__(self, agent):
         super().__init__(agent, 2)
 
-    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
         pos = game_state["self"][3]
         coins = game_state["coins"]
 
@@ -73,7 +81,9 @@ class WallInDirectionFeature(BaseFeature):
     def __init__(self, agent):
         super().__init__(agent, 4)
 
-    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
         walls = game_state["field"]
         pos = game_state["self"][3]
 
@@ -111,7 +121,9 @@ class ClosestCoinFeature(BaseFeature):
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
 
-    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
         coins = game_state["coins"]
 
         if not coins:
@@ -177,7 +189,9 @@ class BFSCoinFeature(BaseFeature):
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
 
-    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
         field = game_state["field"].copy()
         coin_pos = np.array(game_state["coins"])
 
@@ -250,13 +264,15 @@ class BFSCoinFeature(BaseFeature):
 
 class BFSCrateFeature(BaseFeature):
     """
-    Find Closest Crate direction.
+    Find the Closest Crate direction.
     """
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
 
-    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
         field = game_state["field"].copy()
 
         self_pos = game_state["self"][3]
@@ -328,7 +344,9 @@ class BombCrateFeature(BaseFeature):
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 1)
 
-    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
         field = game_state["field"]
         pos = game_state["self"][3]
         sy, sx = pos
@@ -350,36 +368,46 @@ class BombCrateFeature(BaseFeature):
 class AvoidBombFeature(BaseFeature):
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
-        self.bomb_val = -3
+        self.bomb_val = -3  # represents the bomb in the field
 
-    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
         bombs = game_state["bombs"]
         if not bombs:
-            return []
+            return [s.BOMB_POWER + 1] * 4
 
         field = game_state["field"].copy()
-        for x, y, _ in bombs:
+        for (x, y), _ in bombs:
             field[y, x] = self.bomb_val
 
         pos = game_state["self"][3]
         sx, sy = pos
 
-        bomb_up = 5
-        bomb_left = 5
-        bomb_down = 5
-        bomb_right = 5
-        for y, f in enumerate(field[sy - s.BOMB_POWER : sy + s.BOMB_POWER, sx]):
-            if f == self.bomb_val:
-                if y < s.BOMB_POWER:
-                    bomb_up = sy - y
+        upper = max(sy - s.BOMB_POWER, 0)
+        lower = min(sy + s.BOMB_POWER + 1, s.ROWS)
+        left = max(sx - s.BOMB_POWER, 0)
+        right = min(sx + s.BOMB_POWER + 1, s.COLS)
 
-    @staticmethod
-    def is_in_bomb_radius(
-        agent_pos: Tuple[int, int], bomb_pos: Tuple[int, int], bomb_range: int
-    ) -> int:
-        sx, sy = agent_pos
-        bx, by = bomb_pos
+        relevant_y_up = field[upper : sy + 1, sx][::-1]
+        relevant_y_down = field[sy:lower, sx]
+        relevant_x_left = field[sy, left : sx + 1][::-1]
+        relevant_x_right = field[sy, sx:right]
 
-        in_bomb_x = sx in range(bx - bomb_range, bx + bomb_range)
-        in_bomb_y = sy in range(by - bomb_range, by + bomb_range)
-        return int(in_bomb_x is True or in_bomb_y is True)
+        ret = [
+            np.where(relevant_y_up == self.bomb_val)[0],
+            np.where(relevant_y_down == self.bomb_val)[0],
+            np.where(relevant_x_left == self.bomb_val)[0],
+            np.where(relevant_x_right == self.bomb_val)[0],
+        ]
+        return [dist[0] if len(dist) > 0 else s.BOMB_POWER + 1 for dist in ret]
+
+
+class CanPlaceBombFeature(BaseFeature):
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 1)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        return [int(game_state["self"][2])]

@@ -27,9 +27,11 @@ def setup(self):
         # features.CoinForceFeature(self),
         # features.WallInDirectionFeature(self),
         # features.ClosestCoinFeature(self),
-        features.BFSCoinFeature(self),
-        features.BFSCrateFeature(self),
-        features.BombCrateFeature(self),
+        # features.BFSCoinFeature(self),
+        # features.BFSCrateFeature(self),
+        # features.BombCrateFeature(self),
+        features.AvoidBombFeature(self),
+        features.CanPlaceBombFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
@@ -55,6 +57,7 @@ def act(self, game_state: dict) -> str:
     :param game_state: The dictionary that describes everything on the board.
     :return: The action to take as a string.
     """
+
     # todo Exploration vs exploitation
     random_prob = 0.1
     if self.train and random.random() < random_prob:
@@ -63,13 +66,13 @@ def act(self, game_state: dict) -> str:
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
     features: np.ndarray = state_to_features(self, game_state)
-
     self.logger.debug("Querying model for action.")
 
     self.last_action = np.zeros(6)
     action_index = np.argmax(features @ self.model.T + self.means)
     next_action = ACTIONS[action_index]
     self.last_action[action_index] = 1
+
     return next_action
 
 
