@@ -28,6 +28,8 @@ def setup(self):
         # features.WallInDirectionFeature(self),
         # features.ClosestCoinFeature(self),
         features.BFSCoinFeature(self),
+        features.BFSCrateFeature(self),
+        features.BombCrateFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):

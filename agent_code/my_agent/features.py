@@ -5,6 +5,7 @@ from typing import Tuple
 
 import numpy as np
 
+import settings as s
 from .utils import DIRECTION_MAP
 from .utils import DirectionEnum
 
@@ -245,3 +246,140 @@ class BFSCoinFeature(BaseFeature):
         if diff[1] > 0:
             # print([0, 0, 0, 1])
             return np.array([0, 0, 0, 1])
+
+
+class BFSCrateFeature(BaseFeature):
+    """
+    Find Closest Crate direction.
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 4)
+
+    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+        field = game_state["field"].copy()
+
+        self_pos = game_state["self"][3]
+
+        queue = [self_pos]
+        parents = np.ones((*field.shape, 2), dtype=int) * -1
+        current_pos = queue.pop(0)
+
+        while field[current_pos[0], current_pos[1]] != 1:
+            # print(queue)
+            for i, j in zip([-1, 1, 0, 0], [0, 0, -1, 1]):
+                neighbor = current_pos + np.array([i, j])
+
+                # walls are not valid
+                if field[neighbor[0], neighbor[1]] == -1:
+                    continue
+
+                # no parent yet
+                if parents[neighbor[0], neighbor[1]][0] == -1:
+                    parents[neighbor[0], neighbor[1]] = current_pos
+                else:
+                    continue
+
+                # add to queue
+                queue.append(neighbor)
+                # print(queue)
+            if len(queue) == 0:
+                break
+            else:
+                current_pos = queue.pop(0)
+
+        # no coin found
+        if field[current_pos[0], current_pos[1]] != 1:
+            return [0, 0, 0, 0]
+
+        # we already stand on it
+        # no coin found
+        if np.all(current_pos == self_pos):
+            return [0, 0, 0, 0]
+
+        while np.any(parents[current_pos[0], current_pos[1]] != self_pos):
+            current_pos = parents[current_pos[0], current_pos[1]]
+
+        res = []
+        diff = current_pos - self_pos
+
+        if diff[0] < 0:
+            # print([1, 0, 0, 0])
+            return np.array([1, 0, 0, 0])
+
+        if diff[0] > 0:
+            # print([0, 1, 0, 0])
+            return np.array([0, 1, 0, 0])
+
+        if diff[1] < 0:
+            # print([0, 0, 1, 0])
+            return np.array([0, 0, 1, 0])
+
+        if diff[1] > 0:
+            # print([0, 0, 0, 1])
+            return np.array([0, 0, 0, 1])
+
+
+class BombCrateFeature(BaseFeature):
+    """
+    Check if a crate is in bomb range, if so return 1 else 0
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 1)
+
+    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+        field = game_state["field"]
+        pos = game_state["self"][3]
+        sy, sx = pos
+
+        place_bomb = np.array([1])
+
+        if 1 in field[sy, sx : sx + s.BOMB_POWER]:
+            return place_bomb
+        if 1 in field[sy, sx - s.BOMB_POWER : sx]:
+            return place_bomb
+        if 1 in field[sy : sy + s.BOMB_POWER, sx]:
+            return place_bomb
+        if 1 in field[sy - s.BOMB_POWER : sy, sx]:
+            return place_bomb
+
+        return np.array([0])
+
+
+class AvoidBombFeature(BaseFeature):
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 4)
+        self.bomb_val = -3
+
+    def state_to_feature(self, agent: SimpleNamespace, game_state: dict) -> np.ndarray:
+        bombs = game_state["bombs"]
+        if not bombs:
+            return []
+
+        field = game_state["field"].copy()
+        for x, y, _ in bombs:
+            field[y, x] = self.bomb_val
+
+        pos = game_state["self"][3]
+        sx, sy = pos
+
+        bomb_up = 5
+        bomb_left = 5
+        bomb_down = 5
+        bomb_right = 5
+        for y, f in enumerate(field[sy - s.BOMB_POWER : sy + s.BOMB_POWER, sx]):
+            if f == self.bomb_val:
+                if y < s.BOMB_POWER:
+                    bomb_up = sy - y
+
+    @staticmethod
+    def is_in_bomb_radius(
+        agent_pos: Tuple[int, int], bomb_pos: Tuple[int, int], bomb_range: int
+    ) -> int:
+        sx, sy = agent_pos
+        bx, by = bomb_pos
+
+        in_bomb_x = sx in range(bx - bomb_range, bx + bomb_range)
+        in_bomb_y = sy in range(by - bomb_range, by + bomb_range)
+        return int(in_bomb_x is True or in_bomb_y is True)
