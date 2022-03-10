@@ -3,6 +3,7 @@ import pickle
 import random
 
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
 
 from . import features
 
@@ -27,11 +28,11 @@ def setup(self):
         # features.CoinForceFeature(self),
         # features.WallInDirectionFeature(self),
         # features.ClosestCoinFeature(self),
-        # features.BFSCoinFeature(self),
-        # features.BFSCrateFeature(self),
+        features.BFSCoinFeature(self),
+        features.BFSCrateFeature(self),
         # features.BombCrateFeature(self),
         # features.AvoidBombFeature(self),
-        # features.CanPlaceBombFeature(self),
+        features.CanPlaceBombFeature(self),
         features.ClosestSafeSpaceDirection(self),
         features.RunawayDirection(self),
         features.NextToCrate(self),
@@ -41,13 +42,15 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
 
         feature_size = sum(f.get_feature_size() for f in self.features_used)
-        self.model = np.zeros((6, feature_size))
-        self.means = np.zeros(6)
-        self.n_mean_instances = np.zeros(6)
+        self.model = [RandomForestRegressor() for _ in ACTIONS]
+
+        for tree in self.model:
+            tree.fit(np.zeros((1, feature_size)), [0])
+
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
-            self.model, self.means = pickle.load(file)
+            self.model = pickle.load(file)
     self.last_action = np.zeros(6)
 
 
@@ -72,7 +75,7 @@ def act(self, game_state: dict) -> str:
     self.logger.debug("Querying model for action.")
 
     self.last_action = np.zeros(6)
-    action_index = np.argmax(features @ self.model.T + self.means)
+    action_index = np.argmax([tree.predict([features]) for tree in self.model])
     next_action = ACTIONS[action_index]
     self.last_action[action_index] = 1
 

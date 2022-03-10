@@ -4,6 +4,7 @@ from collections import namedtuple
 from typing import List
 
 import numpy as np
+from sklearn.ensemble import RandomForestRegressor
 
 import events as e
 from .callbacks import ACTIONS
@@ -37,8 +38,9 @@ def setup_training(self):
     """
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
-    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
-    self.end_transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
+    self.begin_transition = []
+    self.transitions = []
+    self.end_transitions = []
 
 
 def game_events_occurred(
@@ -68,8 +70,19 @@ def game_events_occurred(
         f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}'
     )
 
-    if old_game_state is None or new_game_state is None:
+    if old_game_state is None:
+        self.begin_transitions.append(
+            Transition(
+                self_action,
+                None,
+                state_to_features(self, new_game_state),
+                0,
+                0,
+                reward_from_events(self, events),
+            )
+        )
         return
+
     # state_to_features is defined in callbacks.py
     self.transitions.append(
         Transition(
@@ -133,25 +146,28 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         )
     )
 
-    # Call Q-Function for each action, and its transitions
-    end_transition_for_action = {}
-    for transition in self.end_transitions:
-        end_transition_for_action.setdefault(transition.action, []).append(transition)
-    transition_for_action = {}
-    for transition in self.transitions:
-        transition_for_action.setdefault(transition.action, []).append(transition)
+    if last_game_state["round"] % 10 == 0:
+        # Call Q-Function for each action, and its transitions
+        end_transition_for_action = {}
+        for transition in self.end_transitions:
+            end_transition_for_action.setdefault(transition.action, []).append(
+                transition
+            )
+        transition_for_action = {}
+        for transition in self.transitions:
+            transition_for_action.setdefault(transition.action, []).append(transition)
 
-    for action in ACTIONS:
-        q_function_train(
-            self,
-            transition_for_action.get(action, []),
-            end_transition_for_action.get(action, []),
-            ACTION_TO_INDEX[action],
-        )
+        for action in ACTIONS:
+            q_function_train(
+                self,
+                transition_for_action.get(action, []),
+                end_transition_for_action.get(action, []),
+                ACTION_TO_INDEX[action],
+            )
 
-    # Store the model
-    with open("my-saved-model.pt", "wb") as file:
-        pickle.dump((self.model, self.means), file)
+        # Store the model
+        with open("my-saved-model.pt", "wb") as file:
+            pickle.dump(self.model, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -203,22 +219,10 @@ def q_function_train(
         q_vals = np.concatenate((q_vals, q_vals_end))
         states_old = np.concatenate((states_old, states_end))
 
-    self.means[action_index] = (
-        self.n_mean_instances[action_index] * self.means[action_index] + np.sum(q_vals)
-    ) / (self.n_mean_instances[action_index] + len(q_vals))
-
-    self.n_mean_instances[action_index] += len(q_vals)
-
-    q_vals -= self.means[action_index]
-
-    beta = model[action_index]
-
-    model[action_index] = beta + alpha * np.mean(
-        states_old * (q_vals - states_old @ beta)[:, None], axis=0
-    )
+    model[action_index].fit(states_old, q_vals)
 
     self.model = model
 
 
-def q_func(model: np.ndarray, state) -> np.ndarray:
-    return np.max(state @ model.T, axis=1)
+def q_func(model, state) -> np.ndarray:
+    return np.max([forest.predict(state) for forest in model], axis=0)
