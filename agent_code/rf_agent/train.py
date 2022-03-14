@@ -38,7 +38,7 @@ def setup_training(self):
     """
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
-    self.begin_transition = []
+    # self.begin_transition = []
     self.transitions = []
     self.end_transitions = []
 
@@ -71,16 +71,16 @@ def game_events_occurred(
     )
 
     if old_game_state is None:
-        self.begin_transitions.append(
-            Transition(
-                self_action,
-                None,
-                state_to_features(self, new_game_state),
-                0,
-                0,
-                reward_from_events(self, events),
-            )
-        )
+        # self.begin_transitions.append(
+        #    Transition(
+        #        self_action,
+        #        None,
+        #        state_to_features(self, new_game_state),
+        #        0,
+        #        0,
+        #        reward_from_events(self, events),
+        #    )
+        # )
         return
 
     # state_to_features is defined in callbacks.py
@@ -179,7 +179,7 @@ def reward_from_events(self, events: List[str]) -> int:
     """
     game_rewards = {
         e.COIN_COLLECTED: 5,
-        e.CRATE_DESTROYED: 2,
+        e.CRATE_DESTROYED: 1,
         RUNAWAY_EVENT: 0.5,
         e.KILLED_SELF: -6,
         e.BOMB_DROPPED: 1,

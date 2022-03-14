@@ -26,16 +26,17 @@ def setup(self):
     """
     self.features_used = [
         # features.CoinForceFeature(self),
-        # features.WallInDirectionFeature(self),
+        features.WallInDirectionFeature(self),
         # features.ClosestCoinFeature(self),
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
         # features.BombCrateFeature(self),
         # features.AvoidBombFeature(self),
         features.CanPlaceBombFeature(self),
-        features.ClosestSafeSpaceDirection(self),
-        features.RunawayDirection(self),
+        # features.ClosestSafeSpaceDirection(self),
+        # features.RunawayDirection(self),
         features.NextToCrate(self),
+        features.BombViewFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):

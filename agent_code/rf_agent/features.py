@@ -408,6 +408,51 @@ class AvoidBombFeature(BaseFeature):
         return result
 
 
+class BombViewFeature(BaseFeature):
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 5)
+        self.bomb_val = -3  # represents the bomb in the field
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+
+        bombs = game_state["bombs"]
+        if not bombs:
+            return [0] * 5
+
+        field = game_state["field"].copy()
+        for (x, y), _ in bombs:
+            field[y, x] = self.bomb_val
+
+        pos = game_state["self"][3]
+        sx, sy = pos
+
+        upper = max(sy - s.BOMB_POWER, 0)
+        lower = min(sy + s.BOMB_POWER + 1, s.ROWS)
+        left = max(sx - s.BOMB_POWER, 0)
+        right = min(sx + s.BOMB_POWER + 1, s.COLS)
+
+        relevant_y_up = field[upper:sy, sx][::-1]
+        relevant_y_down = field[sy + 1 : lower, sx]
+        relevant_x_left = field[sy, left:sx][::-1]
+        relevant_x_right = field[sy, sx + 1 : right]
+
+        ret = [
+            np.any(relevant_y_up == self.bomb_val),
+            np.any(relevant_y_down == self.bomb_val),
+            np.any(relevant_x_left == self.bomb_val),
+            np.any(relevant_x_right == self.bomb_val),
+        ]
+
+        if field[sx, sy] == self.bomb_val:
+            ret.append(1)
+        else:
+            ret.append(0)
+
+        return ret
+
+
 class CanPlaceBombFeature(BaseFeature):
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 1)
