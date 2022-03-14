@@ -213,8 +213,11 @@ class BFSCoinFeature(BaseFeature):
             for i, j in zip([-1, 1, 0, 0], [0, 0, -1, 1]):
                 neighbor = current_pos + np.array([i, j])
 
-                # walls are not valid
-                if field[neighbor[0], neighbor[1]] == -1:
+                # walls and crates are not valid
+                if (
+                    field[neighbor[0], neighbor[1]] == -1
+                    or field[neighbor[0], neighbor[1]] == 1
+                ):
                     continue
 
                 # no parent yet
