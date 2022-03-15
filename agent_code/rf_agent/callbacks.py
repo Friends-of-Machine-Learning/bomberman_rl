@@ -30,11 +30,11 @@ def setup(self):
         # features.ClosestCoinFeature(self),
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        # features.BombCrateFeature(self),
-        # features.AvoidBombFeature(self),
+        features.BombCrateFeature(self),
+        features.AvoidBombFeature(self),
         features.CanPlaceBombFeature(self),
-        # features.ClosestSafeSpaceDirection(self),
-        # features.RunawayDirection(self),
+        features.ClosestSafeSpaceDirection(self),
+        features.RunawayDirection(self),
         features.NextToCrate(self),
         features.BombViewFeature(self),
     ]
@@ -43,7 +43,7 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
 
         feature_size = sum(f.get_feature_size() for f in self.features_used)
-        self.model = [RandomForestRegressor() for _ in ACTIONS]
+        self.model = [RandomForestRegressor(n_estimators=20) for _ in ACTIONS]
 
         for tree in self.model:
             tree.fit(np.zeros((1, feature_size)), [0])

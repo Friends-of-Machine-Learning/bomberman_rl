@@ -89,7 +89,7 @@ class WallInDirectionFeature(BaseFeature):
         pos = game_state["self"][3]
 
         # 1 if wall in that direction, else 0
-        return np.array(
+        walls = np.array(
             (
                 WallInDirectionFeature.is_wall_in_direction(
                     pos, DirectionEnum.UP, walls
@@ -105,6 +105,7 @@ class WallInDirectionFeature(BaseFeature):
                 ),
             )
         )
+        return walls
 
     @staticmethod
     def is_wall_in_direction(
@@ -213,8 +214,11 @@ class BFSCoinFeature(BaseFeature):
             for i, j in zip([-1, 1, 0, 0], [0, 0, -1, 1]):
                 neighbor = current_pos + np.array([i, j])
 
-                # walls are not valid
-                if field[neighbor[0], neighbor[1]] == -1:
+                # walls and crates are not valid
+                if (
+                    field[neighbor[0], neighbor[1]] == -1
+                    or field[neighbor[0], neighbor[1]] == 1
+                ):
                     continue
 
                 # no parent yet
@@ -233,11 +237,13 @@ class BFSCoinFeature(BaseFeature):
 
         # no coin found
         if field[current_pos[0], current_pos[1]] != -2:
+            # print([0, 0, 0, 0])
             return [0, 0, 0, 0]
 
         # we already stand on it
         # no coin found
         if np.all(current_pos == self_pos):
+            # print([0, 0, 0, 0])
             return [0, 0, 0, 0]
 
         while np.any(parents[current_pos[0], current_pos[1]] != self_pos):
@@ -307,11 +313,13 @@ class BFSCrateFeature(BaseFeature):
 
         # no coin found
         if field[current_pos[0], current_pos[1]] != 1:
+            # print([0, 0, 0, 0])
             return [0, 0, 0, 0]
 
         # we already stand on it
         # no coin found
         if np.all(current_pos == self_pos):
+            # print([0, 0, 0, 0])
             return [0, 0, 0, 0]
 
         while np.any(parents[current_pos[0], current_pos[1]] != self_pos):
@@ -344,6 +352,7 @@ class BombCrateFeature(BaseFeature):
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 1)
+        self.can_place = np.array([1])
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -352,21 +361,23 @@ class BombCrateFeature(BaseFeature):
         pos = game_state["self"][3]
         sy, sx = pos
 
-        place_bomb = np.array([1])
-
         if 1 in field[sy, sx : sx + s.BOMB_POWER]:
-            return place_bomb
-        if 1 in field[sy, sx - s.BOMB_POWER : sx]:
-            return place_bomb
+            return self.can_place
+        if 1 in field[sy, sx - s.BOMB_POWER - 1 : sx]:  # -1 to fix OBO
+            return self.can_place
         if 1 in field[sy : sy + s.BOMB_POWER, sx]:
-            return place_bomb
-        if 1 in field[sy - s.BOMB_POWER : sy, sx]:
-            return place_bomb
+            return self.can_place
+        if 1 in field[sy - s.BOMB_POWER - 1 : sy, sx]:  # -1 to fix OBO
+            return self.can_place
 
         return np.array([0])
 
 
 class AvoidBombFeature(BaseFeature):
+    """
+    (bad) return the distance to the bomb in every direction
+    """
+
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
         self.bomb_val = -3  # represents the bomb in the field
@@ -406,6 +417,51 @@ class AvoidBombFeature(BaseFeature):
         )
         result -= 2
         return result
+
+
+class BombViewFeature(BaseFeature):
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 5)
+        self.bomb_val = -3  # represents the bomb in the field
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+
+        bombs = game_state["bombs"]
+        if not bombs:
+            return [0] * 5
+
+        field = game_state["field"].copy()
+        for (x, y), _ in bombs:
+            field[y, x] = self.bomb_val
+
+        pos = game_state["self"][3]
+        sx, sy = pos
+
+        upper = max(sy - s.BOMB_POWER, 0)
+        lower = min(sy + s.BOMB_POWER + 1, s.ROWS)
+        left = max(sx - s.BOMB_POWER, 0)
+        right = min(sx + s.BOMB_POWER + 1, s.COLS)
+
+        relevant_y_up = field[upper:sy, sx][::-1]
+        relevant_y_down = field[sy + 1 : lower, sx]
+        relevant_x_left = field[sy, left:sx][::-1]
+        relevant_x_right = field[sy, sx + 1 : right]
+
+        ret = [
+            np.any(relevant_y_up == self.bomb_val),
+            np.any(relevant_y_down == self.bomb_val),
+            np.any(relevant_x_left == self.bomb_val),
+            np.any(relevant_x_right == self.bomb_val),
+        ]
+
+        if field[sx, sy] == self.bomb_val:
+            ret.append(1)
+        else:
+            ret.append(0)
+
+        return np.array(ret, dtype=int)
 
 
 class CanPlaceBombFeature(BaseFeature):
@@ -589,13 +645,83 @@ class NextToCrate(BaseFeature):
 
         place_bomb = np.array([1])
 
-        if 1 in field[sy, sx : sx + 1]:
+        if 1 in field[sy, sx + 1 : sx + 2]:  # +1 and +2 because right side is exclusive
             return place_bomb
         if 1 in field[sy, sx - 1 : sx]:
             return place_bomb
-        if 1 in field[sy : sy + 1, sx]:
+        if 1 in field[sy + 1 : sy + 2, sx]:
             return place_bomb
         if 1 in field[sy - 1 : sy, sx]:
             return place_bomb
 
         return np.array([0])
+
+
+class InstantDeathDirections(BaseFeature):
+    """
+    Check for every direction if a step would be lethal
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 5)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+
+        field = game_state["field"]
+        next_explosion_map = game_state["explosion_map"].copy() - 1
+        next_explosion_map[next_explosion_map < 0] = 0
+
+        for (x, y), t in game_state["bombs"]:
+
+            # skip bombs not about to explode
+            if t != 0:
+                continue
+
+            # up
+            for i in range(settings.BOMB_POWER + 1):
+                if field[y + i, x] != -1:
+                    next_explosion_map[y + i, x] = 4
+                else:
+                    break
+            # down
+            for i in range(settings.BOMB_POWER + 1):
+                if field[y - i, x] != -1:
+                    next_explosion_map[y - i, x] = 4
+                else:
+                    break
+            # left
+            for i in range(settings.BOMB_POWER + 1):
+                if field[y, x - i] != -1:
+                    next_explosion_map[y, x - i] = 4
+                else:
+                    break
+            # right
+            for i in range(settings.BOMB_POWER + 1):
+                if field[y, x + i] != -1:
+                    next_explosion_map[y, x + i] = 4
+                else:
+                    break
+
+        pos = game_state["self"][3]
+        sy, sx = pos
+
+        res = []
+        # all directions
+        for (i, j) in zip([-1, 1, 0, 0], [0, 0, -1, 1]):
+
+            # check if explosion will be present in next step
+            if next_explosion_map[sy + i, sx + j] > 1:
+                res.append(1)
+                continue
+
+            res.append(0)
+
+        # own position
+        if next_explosion_map[sy, sx] > 1:
+            res.append(1)
+        else:
+            res.append(0)
+
+        return res

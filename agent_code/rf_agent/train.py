@@ -1,10 +1,8 @@
 import pickle
-from collections import deque
 from collections import namedtuple
 from typing import List
 
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
 
 import events as e
 from .callbacks import ACTIONS
@@ -179,12 +177,12 @@ def reward_from_events(self, events: List[str]) -> int:
     """
     game_rewards = {
         e.COIN_COLLECTED: 5,
-        e.CRATE_DESTROYED: 1,
+        e.CRATE_DESTROYED: 2,
         RUNAWAY_EVENT: 0.5,
         e.KILLED_SELF: -6,
-        e.BOMB_DROPPED: 1,
+        e.BOMB_DROPPED: -0.5,
         e.INVALID_ACTION: -0.2,
-        e.WAITED: -0.2,
+        # e.WAITED: -0.2,
         BACKTRACK_EVENT: -0.1,
     }
     reward_sum = 0

@@ -29,7 +29,10 @@ def setup(self):
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
         features.CanPlaceBombFeature(self),
+        # features.BombCrateFeature(self),
         features.NextToCrate(self),
+        features.AvoidBombFeature(self),
+        features.RunawayDirection(self),
         features.BombViewFeature(self),
         features.InstantDeathDirections(self),
     ]
@@ -38,7 +41,7 @@ def setup(self):
         self.logger.info("Setting up model from scratch.")
 
         feature_size = sum(f.get_feature_size() for f in self.features_used)
-        self.model = [RandomForestRegressor() for _ in ACTIONS]
+        self.model = [RandomForestRegressor(n_estimators=50) for _ in ACTIONS]
 
         for tree in self.model:
             tree.fit(np.zeros((1, feature_size)), [0])
@@ -60,11 +63,9 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
 
-    # todo Exploration vs exploitation
-    random_prob = 0.1
+    random_prob = 0.2
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
-        # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
     features: np.ndarray = state_to_features(self, game_state)

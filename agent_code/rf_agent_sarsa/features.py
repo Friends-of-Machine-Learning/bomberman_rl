@@ -1,13 +1,11 @@
 from abc import ABC
 from abc import abstractmethod
-from operator import ne
 from types import SimpleNamespace
 from typing import List
 from typing import Tuple
 from typing import Union
 
 import numpy as np
-from numpy import place
 
 import settings
 import settings as s
@@ -354,6 +352,7 @@ class BombCrateFeature(BaseFeature):
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 1)
+        self.can_place = np.array([1])
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -362,18 +361,16 @@ class BombCrateFeature(BaseFeature):
         pos = game_state["self"][3]
         sy, sx = pos
 
-        place_bomb = np.array([0])
-
         if 1 in field[sy, sx : sx + s.BOMB_POWER]:
-            place_bomb[0] = 1
-        if 1 in field[sy, sx - s.BOMB_POWER : sx]:
-            place_bomb[0] = 1
+            return self.can_place
+        if 1 in field[sy, sx - s.BOMB_POWER - 1 : sx]:  # -1 to fix OBO
+            return self.can_place
         if 1 in field[sy : sy + s.BOMB_POWER, sx]:
-            place_bomb[0] = 1
-        if 1 in field[sy - s.BOMB_POWER : sy, sx]:
-            place_bomb[0] = 1
+            return self.can_place
+        if 1 in field[sy - s.BOMB_POWER - 1 : sy, sx]:  # -1 to fix OBO
+            return self.can_place
 
-        return place_bomb
+        return np.array([0])
 
 
 class AvoidBombFeature(BaseFeature):
@@ -648,11 +645,11 @@ class NextToCrate(BaseFeature):
 
         place_bomb = np.array([1])
 
-        if 1 in field[sy, sx : sx + 1]:
+        if 1 in field[sy, sx + 1 : sx + 2]:  # +1 and +2 because right side is exclusive
             return place_bomb
         if 1 in field[sy, sx - 1 : sx]:
             return place_bomb
-        if 1 in field[sy : sy + 1, sx]:
+        if 1 in field[sy + 1 : sy + 2, sx]:
             return place_bomb
         if 1 in field[sy - 1 : sy, sx]:
             return place_bomb
