@@ -25,28 +25,28 @@ def setup(self):
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
     self.features_used = [
-        # features.CoinForceFeature(self),
+        features.OmegaMovementFeature(self),
         features.WallInDirectionFeature(self),
-        # features.ClosestCoinFeature(self),
-        features.BFSCoinFeature(self),
-        features.BFSCrateFeature(self),
-        features.BombCrateFeature(self),
-        features.AvoidBombFeature(self),
         features.CanPlaceBombFeature(self),
-        features.ClosestSafeSpaceDirection(self),
-        features.RunawayDirection(self),
         features.NextToCrate(self),
+        features.InstantDeathDirections(self),
         features.BombViewFeature(self),
     ]
+    self.keep_model: bool = True
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
 
         feature_size = sum(f.get_feature_size() for f in self.features_used)
-        self.model = [RandomForestRegressor(n_estimators=20) for _ in ACTIONS]
 
-        for tree in self.model:
-            tree.fit(np.zeros((1, feature_size)), [0])
+        if self.keep_model:
+            with open("my-saved-model.pt", "rb") as file:
+                self.model = pickle.load(file)
+        else:
+            self.model = [RandomForestRegressor(n_estimators=20) for _ in ACTIONS]
+
+            for tree in self.model:
+                tree.fit(np.zeros((1, feature_size)), [0])
 
     else:
         self.logger.info("Loading model from saved state.")

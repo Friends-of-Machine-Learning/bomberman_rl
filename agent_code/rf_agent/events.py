@@ -5,6 +5,8 @@ from typing import List
 
 import numpy as np
 
+import events as e
+
 
 class BaseEvent(ABC):
     """
@@ -60,12 +62,8 @@ class UselessBombEvent(BaseEvent):
         new_game_state: dict,
         events: List[str],
     ) -> None:
-        old_bomb = old_game_state["bombs"]
-        new_bomb = new_game_state["bombs"]
 
-        old_field = old_game_state["field"]
-        new_field = new_game_state["field"]
-
-        # Bomb exploded, but field stayed the same
-        if len(old_bomb) > len(new_bomb) and np.all(old_field == new_field):
+        if e.BOMB_EXPLODED in events and not (
+            e.CRATE_DESTROYED in events or e.KILLED_OPPONENT in events
+        ):
             events.append(self.E)

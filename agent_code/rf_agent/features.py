@@ -572,21 +572,21 @@ class InstantDeathDirections(BaseFeature):
                     break
 
         pos = game_state["self"][3]
-        sy, sx = pos
+        sx, sy = pos
 
         res = []
         # all directions
-        for (i, j) in zip(DIRECTION_MAP.values()):
+        for i, j in DIRECTION_MAP.values():
 
             # check if explosion will be present in next step
-            if next_explosion_map[sy + i, sx + j] > 1:
+            if next_explosion_map[sx + i, sy + j] > 1:
                 res.append(1)
                 continue
 
             res.append(0)
 
         # own position
-        if next_explosion_map[sy, sx] > 1:
+        if next_explosion_map[sx, sy] > 1:
             res.append(1)
         else:
             res.append(0)
