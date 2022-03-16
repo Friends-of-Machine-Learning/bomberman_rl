@@ -26,25 +26,33 @@ def setup(self):
     """
     self.features_used = [
         features.WallInDirectionFeature(self),
-        features.BFSCoinFeature(self),
-        features.BFSCrateFeature(self),
+        # features.BFSCoinFeature(self),
+        # features.BFSCrateFeature(self),
         features.CanPlaceBombFeature(self),
         # features.BombCrateFeature(self),
         features.NextToCrate(self),
-        features.AvoidBombFeature(self),
-        features.RunawayDirection(self),
-        features.BombViewFeature(self),
+        # features.AvoidBombFeature(self),
+        # features.RunawayDirectionFeature(self),
+        # features.BombViewFeature(self),
         features.InstantDeathDirections(self),
+        features.OmegaMovementFeature(self),
     ]
+
+    KEEP_MODEL: bool = False
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
 
         feature_size = sum(f.get_feature_size() for f in self.features_used)
-        self.model = [RandomForestRegressor(n_estimators=50) for _ in ACTIONS]
 
-        for tree in self.model:
-            tree.fit(np.zeros((1, feature_size)), [0])
+        # Following 2 lines only if previously trained by turn-based mode, else comment out
+        if KEEP_MODEL:
+            with open("my-saved-model.pt", "rb") as file:
+                self.model = pickle.load(file)
+        else:
+            self.model = [RandomForestRegressor(n_estimators=50) for _ in ACTIONS]
+            for tree in self.model:
+                tree.fit(np.zeros((1, feature_size)), [0])
 
     else:
         self.logger.info("Loading model from saved state.")
@@ -63,8 +71,10 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
 
-    random_prob = 0.2
-    if self.train and random.random() < random_prob:
+    PLAYER_INPUT: bool = False
+
+    random_prob = 0.08
+    if not PLAYER_INPUT and self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
@@ -75,6 +85,10 @@ def act(self, game_state: dict) -> str:
     action_index = np.argmax([tree.predict([features]) for tree in self.model])
     next_action = ACTIONS[action_index]
     self.last_action[action_index] = 1
+
+    # Uncomment the following 2 lines to train the agent by playing yourself in turn-based mode.
+    if self.train and PLAYER_INPUT:
+        return game_state["user_input"]
 
     return next_action
 

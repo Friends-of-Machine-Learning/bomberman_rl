@@ -7,6 +7,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 
 import events as e
+from . import events as ev
 from .callbacks import ACTIONS
 from .callbacks import state_to_features
 from .utils import ACTION_TO_INDEX
@@ -32,6 +33,7 @@ def setup_training(self: SimpleNamespace) -> None:
 
     :param self: This SimpleNamespace Object is passed to all callbacks and you can set arbitrary values.
     """
+    self.custom_events = [ev.UselessBombEvent()]
 
     # Used to keep track of Transitions on per Round basis to create SARSA Pairs. Will be cleared after each Round.
     self.last_game_transitions = []
@@ -71,6 +73,11 @@ def game_events_occurred(
 
     if old_game_state is None:
         return
+
+    for custom_event in self.custom_events:
+        custom_event.game_events_occurred(
+            old_game_state, self_action, new_game_state, events
+        )
 
     # if (
     #    len(self.sarsa_transitions) > 2
@@ -192,16 +199,17 @@ def reward_from_events(self: SimpleNamespace, events: List[str]) -> int:
     """
 
     game_rewards = {
-        e.COIN_COLLECTED: 1,
+        e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 0.5,
-        e.BOMB_DROPPED: 0.5,
-        e.KILLED_SELF: -4,
-        e.INVALID_ACTION: -2,
+        e.BOMB_DROPPED: 0.15,
+        e.KILLED_SELF: -5,
+        e.INVALID_ACTION: -0.1,
         e.WAITED: -0.1,
-        e.MOVED_DOWN: -0.05,
-        e.MOVED_UP: -0.05,
-        e.MOVED_LEFT: -0.05,
-        e.MOVED_RIGHT: -0.05,
+        e.MOVED_DOWN: 0.1,
+        e.MOVED_UP: 0.1,
+        e.MOVED_LEFT: 0.1,
+        e.MOVED_RIGHT: 0.1,
+        # ev.UselessBombEvent.E: -1,
     }
     reward_sum = 0
     for event in events:

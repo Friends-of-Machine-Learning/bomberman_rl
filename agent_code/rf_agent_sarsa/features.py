@@ -7,12 +7,12 @@ from typing import Union
 
 import numpy as np
 
-import settings
 import settings as s
+from .utils import BFS
 from .utils import DIRECTION_MAP
 from .utils import DirectionEnum
 
-FeatureSpace = Union[np.ndarray, List[Union[float, int]]]
+FeatureSpace = Union[np.ndarray, List[Union[float, int]], Tuple]
 
 
 class BaseFeature(ABC):
@@ -189,7 +189,8 @@ class ClosestCoinFeature(BaseFeature):
 
 class BFSCoinFeature(BaseFeature):
     def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 4)
+        super().__init__(agent, 2)
+        self.coin_val = -2
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -198,75 +199,13 @@ class BFSCoinFeature(BaseFeature):
         coin_pos = np.array(game_state["coins"])
 
         if len(coin_pos) == 0:
-            # print("no coin pos")
             return np.zeros(self.feature_size)
 
-        field[coin_pos[:, 0], coin_pos[:, 1]] = -2
+        field[coin_pos[:, 0], coin_pos[:, 1]] = self.coin_val
 
         self_pos = game_state["self"][3]
 
-        queue = [self_pos]
-        parents = np.ones((*field.shape, 2), dtype=int) * -1
-        current_pos = queue.pop(0)
-
-        while field[current_pos[0], current_pos[1]] != -2:
-            # print(queue)
-            for i, j in zip([-1, 1, 0, 0], [0, 0, -1, 1]):
-                neighbor = current_pos + np.array([i, j])
-
-                # walls and crates are not valid
-                if (
-                    field[neighbor[0], neighbor[1]] == -1
-                    or field[neighbor[0], neighbor[1]] == 1
-                ):
-                    continue
-
-                # no parent yet
-                if parents[neighbor[0], neighbor[1]][0] == -1:
-                    parents[neighbor[0], neighbor[1]] = current_pos
-                else:
-                    continue
-
-                # add to queue
-                queue.append(neighbor)
-                # print(queue)
-            if len(queue) == 0:
-                break
-            else:
-                current_pos = queue.pop(0)
-
-        # no coin found
-        if field[current_pos[0], current_pos[1]] != -2:
-            # print([0, 0, 0, 0])
-            return [0, 0, 0, 0]
-
-        # we already stand on it
-        # no coin found
-        if np.all(current_pos == self_pos):
-            # print([0, 0, 0, 0])
-            return [0, 0, 0, 0]
-
-        while np.any(parents[current_pos[0], current_pos[1]] != self_pos):
-            current_pos = parents[current_pos[0], current_pos[1]]
-
-        res = []
-        diff = current_pos - self_pos
-
-        if diff[0] < 0:
-            # print([1, 0, 0, 0])
-            return np.array([1, 0, 0, 0])
-
-        if diff[0] > 0:
-            # print([0, 1, 0, 0])
-            return np.array([0, 1, 0, 0])
-
-        if diff[1] < 0:
-            # print([0, 0, 1, 0])
-            return np.array([0, 0, 1, 0])
-
-        if diff[1] > 0:
-            # print([0, 0, 0, 1])
-            return np.array([0, 0, 0, 1])
+        return BFS(self_pos, field, self.coin_val)
 
 
 class BFSCrateFeature(BaseFeature):
@@ -275,7 +214,7 @@ class BFSCrateFeature(BaseFeature):
     """
 
     def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 4)
+        super().__init__(agent, 2)
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -283,66 +222,7 @@ class BFSCrateFeature(BaseFeature):
         field = game_state["field"].copy()
 
         self_pos = game_state["self"][3]
-
-        queue = [self_pos]
-        parents = np.ones((*field.shape, 2), dtype=int) * -1
-        current_pos = queue.pop(0)
-
-        while field[current_pos[0], current_pos[1]] != 1:
-            # print(queue)
-            for i, j in zip([-1, 1, 0, 0], [0, 0, -1, 1]):
-                neighbor = current_pos + np.array([i, j])
-
-                # walls are not valid
-                if field[neighbor[0], neighbor[1]] == -1:
-                    continue
-
-                # no parent yet
-                if parents[neighbor[0], neighbor[1]][0] == -1:
-                    parents[neighbor[0], neighbor[1]] = current_pos
-                else:
-                    continue
-
-                # add to queue
-                queue.append(neighbor)
-                # print(queue)
-            if len(queue) == 0:
-                break
-            else:
-                current_pos = queue.pop(0)
-
-        # no coin found
-        if field[current_pos[0], current_pos[1]] != 1:
-            # print([0, 0, 0, 0])
-            return [0, 0, 0, 0]
-
-        # we already stand on it
-        # no coin found
-        if np.all(current_pos == self_pos):
-            # print([0, 0, 0, 0])
-            return [0, 0, 0, 0]
-
-        while np.any(parents[current_pos[0], current_pos[1]] != self_pos):
-            current_pos = parents[current_pos[0], current_pos[1]]
-
-        res = []
-        diff = current_pos - self_pos
-
-        if diff[0] < 0:
-            # print([1, 0, 0, 0])
-            return np.array([1, 0, 0, 0])
-
-        if diff[0] > 0:
-            # print([0, 1, 0, 0])
-            return np.array([0, 1, 0, 0])
-
-        if diff[1] < 0:
-            # print([0, 0, 1, 0])
-            return np.array([0, 0, 1, 0])
-
-        if diff[1] > 0:
-            # print([0, 0, 0, 1])
-            return np.array([0, 0, 0, 1])
+        return BFS(self_pos, field, 1)
 
 
 class BombCrateFeature(BaseFeature):
@@ -484,7 +364,7 @@ class ClosestSafeSpaceDirection(BaseFeature):
     ) -> FeatureSpace:
         bombs = game_state["bombs"]
         if not bombs:
-            return [0, 0, 0, 0]
+            return 0, 0
 
         field = game_state["field"].copy()
         for (x, y), _ in bombs:
@@ -498,93 +378,37 @@ class ClosestSafeSpaceDirection(BaseFeature):
             explosionmask[y, x] = self.bomb_val
 
             # up
-            for i in range(settings.BOMB_POWER + 1):
+            for i in range(s.BOMB_POWER + 1):
                 if explosionmask[y + i, x] != -1:
                     explosionmask[y + i, x] = -4
                 else:
                     break
             # down
-            for i in range(settings.BOMB_POWER + 1):
+            for i in range(s.BOMB_POWER + 1):
                 if explosionmask[y - i, x] != -1:
                     explosionmask[y - i, x] = -4
                 else:
                     break
             # left
-            for i in range(settings.BOMB_POWER + 1):
+            for i in range(s.BOMB_POWER + 1):
                 if explosionmask[y, x - i] != -1:
                     explosionmask[y, x - i] = -4
                 else:
                     break
             # right
-            for i in range(settings.BOMB_POWER + 1):
+            for i in range(s.BOMB_POWER + 1):
                 if explosionmask[y, x + i] != -1:
                     explosionmask[y, x + i] = -4
                 else:
                     break
 
         if explosionmask[sy, sx] == 0:
-            return [0, 0, 0, 0]
+            return 0, 0
 
-        queue = [pos]
-        parents = np.ones((*explosionmask.shape, 2), dtype=int) * -1
-        current_pos = queue.pop(0)
-
-        while explosionmask[current_pos[0], current_pos[1]] != 0:
-            # print(queue)
-            for i, j in zip([-1, 1, 0, 0], [0, 0, -1, 1]):
-                neighbor = current_pos + np.array([i, j])
-
-                # walls are not valid
-                if explosionmask[neighbor[0], neighbor[1]] == -1:
-                    continue
-
-                # no parent yet
-                if parents[neighbor[0], neighbor[1]][0] == -1:
-                    parents[neighbor[0], neighbor[1]] = current_pos
-                else:
-                    continue
-
-                # add to queue
-                queue.append(neighbor)
-                # print(queue)
-            if len(queue) == 0:
-                break
-            else:
-                current_pos = queue.pop(0)
-
-        # no coin found
-        if explosionmask[current_pos[0], current_pos[1]] != 0:
-            return [0, 0, 0, 0]
-
-        # we already stand on it
-        # no coin found
-        if np.all(current_pos == pos):
-            return [0, 0, 0, 0]
-
-        while np.any(parents[current_pos[0], current_pos[1]] != pos):
-            current_pos = parents[current_pos[0], current_pos[1]]
-
-        res = []
-        diff = current_pos - pos
-
-        if diff[0] < 0:
-            # print([1, 0, 0, 0])
-            return np.array([1, 0, 0, 0])
-
-        if diff[0] > 0:
-            # print([0, 1, 0, 0])
-            return np.array([0, 1, 0, 0])
-
-        if diff[1] < 0:
-            # print([0, 0, 1, 0])
-            return np.array([0, 0, 1, 0])
-
-        if diff[1] > 0:
-            # print([0, 0, 0, 1])
-            return np.array([0, 0, 0, 1])
+        return BFS(pos, explosionmask, 0)
 
 
-class RunawayDirection(BaseFeature):
+class RunawayDirectionFeature(BaseFeature):
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
         self.bomb_val = -3  # represents the bomb in the field
@@ -680,25 +504,25 @@ class InstantDeathDirections(BaseFeature):
                 continue
 
             # up
-            for i in range(settings.BOMB_POWER + 1):
+            for i in range(s.BOMB_POWER + 1):
                 if field[y + i, x] != -1:
                     next_explosion_map[y + i, x] = 4
                 else:
                     break
             # down
-            for i in range(settings.BOMB_POWER + 1):
+            for i in range(s.BOMB_POWER + 1):
                 if field[y - i, x] != -1:
                     next_explosion_map[y - i, x] = 4
                 else:
                     break
             # left
-            for i in range(settings.BOMB_POWER + 1):
+            for i in range(s.BOMB_POWER + 1):
                 if field[y, x - i] != -1:
                     next_explosion_map[y, x - i] = 4
                 else:
                     break
             # right
-            for i in range(settings.BOMB_POWER + 1):
+            for i in range(s.BOMB_POWER + 1):
                 if field[y, x + i] != -1:
                     next_explosion_map[y, x + i] = 4
                 else:
@@ -725,3 +549,29 @@ class InstantDeathDirections(BaseFeature):
             res.append(0)
 
         return res
+
+
+class OmegaMovementFeature(BaseFeature):
+    """
+    Manages multiple movement related features.
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 2)
+        self.coin_feature = BFSCoinFeature(agent)
+        self.crate_feature = BFSCrateFeature(agent)
+        self.runaway_feature = ClosestSafeSpaceDirection(agent)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        c_x, c_y = self.coin_feature.state_to_feature(agent, game_state)
+        cr_x, cr_y = self.crate_feature.state_to_feature(agent, game_state)
+        r_x, r_y = self.runaway_feature.state_to_feature(agent, game_state)
+
+        # Most important, do not die
+        if r_x or r_y:
+            return r_x, r_y
+        if c_x or c_y:
+            return c_x, c_y
+        return cr_x, cr_y
