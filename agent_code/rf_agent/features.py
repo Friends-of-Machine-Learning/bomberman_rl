@@ -20,9 +20,12 @@ class BaseFeature(ABC):
     Base Class for all features.
     """
 
-    def __init__(self, agent: SimpleNamespace, feature_size: int = 1):
+    def __init__(
+        self, agent: SimpleNamespace, feature_size: int = 1, feature_names: dict = None
+    ):
         self.agent: SimpleNamespace = agent
         self.feature_size: int = feature_size
+        self.feature_names: dict = feature_names if feature_names else {}
 
     def get_feature_size(self) -> int:
         return self.feature_size
@@ -45,6 +48,9 @@ class BaseFeature(ABC):
         extracted_feature : np.ndarray
         """
         raise NotImplementedError()
+
+    def feature_to_readable_name(self, features: FeatureSpace) -> str:
+        return f"{self.__class__.__name__}: {self.feature_names.get(tuple(features), str(features))}"
 
 
 class CoinForceFeature(BaseFeature):
@@ -111,8 +117,8 @@ class WallInDirectionFeature(BaseFeature):
     def is_wall_in_direction(
         agent_pos: Tuple[int, int], direction: DirectionEnum, walls: np.ndarray
     ) -> int:
-        _y, _x = np.add(agent_pos, DIRECTION_MAP[direction])[::-1]
-        return int(walls[_y, _x] != 0)
+        _x, _y = np.add(agent_pos, DIRECTION_MAP[direction])
+        return int(walls[_x, _y] != 0)
 
 
 class ClosestCoinFeature(BaseFeature):
@@ -202,9 +208,7 @@ class BFSCoinFeature(BaseFeature):
             return np.zeros(self.feature_size)
 
         field[coin_pos[:, 0], coin_pos[:, 1]] = self.coin_val
-
         self_pos = game_state["self"][3]
-
         return BFS(self_pos, field, self.coin_val)
 
 
@@ -239,28 +243,34 @@ class BombCrateFeature(BaseFeature):
     ) -> FeatureSpace:
         field = game_state["field"]
         pos = game_state["self"][3]
-        sy, sx = pos
+        sx, sy = pos
 
-        if 1 in field[sy, sx : sx + s.BOMB_POWER]:
+        if 1 in field[sx, sy : sy + s.BOMB_POWER]:
             return self.can_place
-        if 1 in field[sy, sx - s.BOMB_POWER - 1 : sx]:  # -1 to fix OBO
+        if 1 in field[sx, sy - s.BOMB_POWER - 1 : sy]:  # -1 to fix OBO
             return self.can_place
-        if 1 in field[sy : sy + s.BOMB_POWER, sx]:
+        if 1 in field[sx : sx + s.BOMB_POWER, sy]:
             return self.can_place
-        if 1 in field[sy - s.BOMB_POWER - 1 : sy, sx]:  # -1 to fix OBO
+        if 1 in field[sx - s.BOMB_POWER - 1 : sx, sy]:  # -1 to fix OBO
             return self.can_place
 
         return np.array([0])
 
 
-class AvoidBombFeature(BaseFeature):
+class BombDistanceDirectionsFeature(BaseFeature):
     """
-    (bad) return the distance to the bomb in every direction
+    Return the distance in every direction to the closest bomb.
+    5 means no bomb in proximity.
+    0 means standing on bomb.
     """
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
         self.bomb_val = -3  # represents the bomb in the field
+
+    def feature_to_readable_name(self, features: FeatureSpace) -> str:
+        up, down, left, right = features
+        return f"{self.__class__.__name__}: (U={up}, D={down}, L={left}, R={right})"
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -271,7 +281,7 @@ class AvoidBombFeature(BaseFeature):
 
         field = game_state["field"].copy()
         for (x, y), _ in bombs:
-            field[y, x] = self.bomb_val
+            field[x, y] = self.bomb_val
 
         pos = game_state["self"][3]
         sx, sy = pos
@@ -281,10 +291,10 @@ class AvoidBombFeature(BaseFeature):
         left = max(sx - s.BOMB_POWER, 0)
         right = min(sx + s.BOMB_POWER + 1, s.COLS)
 
-        relevant_y_up = field[upper : sy + 1, sx][::-1]
-        relevant_y_down = field[sy:lower, sx]
-        relevant_x_left = field[sy, left : sx + 1][::-1]
-        relevant_x_right = field[sy, sx:right]
+        relevant_y_up = field[sx, upper : sy + 1][::-1]
+        relevant_y_down = field[sx, sy:lower]
+        relevant_x_left = field[left : sx + 1, sy][::-1]
+        relevant_x_right = field[sx:right, sy]
 
         ret = [
             np.where(relevant_y_up == self.bomb_val)[0],
@@ -295,14 +305,22 @@ class AvoidBombFeature(BaseFeature):
         result = np.array(
             [dist[0] if len(dist) > 0 else s.BOMB_POWER + 1 for dist in ret]
         )
-        result -= 2
         return result
 
 
 class BombViewFeature(BaseFeature):
+    """
+    4 directions + Standing on bomb as feature.
+    1 If bomb is present in that direction, else 0.
+    """
+
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 5)
         self.bomb_val = -3  # represents the bomb in the field
+
+    def feature_to_readable_name(self, features: FeatureSpace) -> str:
+        u, d, l, r, s = features
+        return f"{self.__class__.__name__}: (U={u}, D={d}, L={l}, R={r}, S={s})"
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -324,18 +342,19 @@ class BombViewFeature(BaseFeature):
         left = max(sx - s.BOMB_POWER, 0)
         right = min(sx + s.BOMB_POWER + 1, s.COLS)
 
-        relevant_y_up = field[upper:sy, sx][::-1]
-        relevant_y_down = field[sy + 1 : lower, sx]
-        relevant_x_left = field[sy, left:sx][::-1]
-        relevant_x_right = field[sy, sx + 1 : right]
+        relevant_y_up = field[sx, upper:sy][::-1]
+        relevant_y_down = field[sx, sy + 1 : lower]
+        relevant_x_left = field[left:sx, sy][::-1]
+        relevant_x_right = field[sx + 1 : right, sy]
 
         ret = [
-            np.any(relevant_y_up == self.bomb_val),
-            np.any(relevant_y_down == self.bomb_val),
-            np.any(relevant_x_left == self.bomb_val),
-            np.any(relevant_x_right == self.bomb_val),
+            np.any(relevant_y_up == self.bomb_val),  # 1 if bomb up
+            np.any(relevant_y_down == self.bomb_val),  # 1 if bomb down
+            np.any(relevant_x_left == self.bomb_val),  # 1 if bomb left
+            np.any(relevant_x_right == self.bomb_val),  # 1 if bomb right
         ]
 
+        # 1 if stand on bomb
         if field[sx, sy] == self.bomb_val:
             ret.append(1)
         else:
@@ -345,6 +364,10 @@ class BombViewFeature(BaseFeature):
 
 
 class CanPlaceBombFeature(BaseFeature):
+    """
+    1 if agent can place bomb, else 0.
+    """
+
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 1)
 
@@ -355,8 +378,20 @@ class CanPlaceBombFeature(BaseFeature):
 
 
 class ClosestSafeSpaceDirection(BaseFeature):
+    """
+    Uses BFS to find the closest safe space, returns the direction if safe space found.
+    """
+
+    _feature_names = {
+        DIRECTION_MAP[DirectionEnum.UP]: "Up",
+        DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
+        DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
+        DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
+        (0, 0): "Wait WTF",
+    }
+
     def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 4)
+        super().__init__(agent, 4, self._feature_names)
         self.bomb_val = -3  # represents the bomb in the field
 
     def state_to_feature(
@@ -368,50 +403,57 @@ class ClosestSafeSpaceDirection(BaseFeature):
 
         field = game_state["field"].copy()
         for (x, y), _ in bombs:
-            field[y, x] = self.bomb_val
+            field[x, y] = self.bomb_val
 
         pos = game_state["self"][3]
         sx, sy = pos
 
         explosionmask = field.copy()
         for (x, y), _ in bombs:
-            explosionmask[y, x] = self.bomb_val
+            explosionmask[x, y] = self.bomb_val
 
             # up
             for i in range(s.BOMB_POWER + 1):
-                if explosionmask[y + i, x] != -1:
-                    explosionmask[y + i, x] = -4
+                if explosionmask[x, y + i] != -1:
+                    explosionmask[x, y + i] = -4
                 else:
                     break
             # down
             for i in range(s.BOMB_POWER + 1):
-                if explosionmask[y - i, x] != -1:
-                    explosionmask[y - i, x] = -4
+                if explosionmask[x, y - i] != -1:
+                    explosionmask[x, y - i] = -4
                 else:
                     break
             # left
             for i in range(s.BOMB_POWER + 1):
-                if explosionmask[y, x - i] != -1:
-                    explosionmask[y, x - i] = -4
+                if explosionmask[x - i, y] != -1:
+                    explosionmask[x - i, y] = -4
                 else:
                     break
             # right
             for i in range(s.BOMB_POWER + 1):
-                if explosionmask[y, x + i] != -1:
-                    explosionmask[y, x + i] = -4
+                if explosionmask[x + i, y] != -1:
+                    explosionmask[x + i, y] = -4
                 else:
                     break
 
-        if explosionmask[sy, sx] == 0:
+        if explosionmask[sx, sy] == 0:
             return 0, 0
 
         return BFS(pos, explosionmask, 0)
 
 
 class RunawayDirectionFeature(BaseFeature):
+    """
+    4 directions as feature. Each direction is 1 if it leads away from bomb in average.
+    """
+
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
         self.bomb_val = -3  # represents the bomb in the field
+
+    def feature_to_readable_name(self, features: FeatureSpace) -> str:
+        return f"{self.__class__.__name__}: "
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -422,10 +464,9 @@ class RunawayDirectionFeature(BaseFeature):
 
         field = game_state["field"].copy()
         for (x, y), _ in bombs:
-            field[y, x] = self.bomb_val
+            field[x, y] = self.bomb_val
 
         pos = game_state["self"][3]
-        sx, sy = pos
 
         old_bombs = [(x, y) for (x, y), _ in bombs]
         con_old = np.subtract(old_bombs, pos)
@@ -434,7 +475,7 @@ class RunawayDirectionFeature(BaseFeature):
 
         res = [0, 0, 0, 0]
 
-        for index, (i, j) in enumerate(zip([-1, 1, 0, 0], [0, 0, -1, 1])):
+        for index, (i, j) in enumerate(DIRECTION_MAP.values()):
             neighbor = pos + np.array([i, j])
 
             # walls are not valid
@@ -457,8 +498,10 @@ class NextToCrate(BaseFeature):
     Check if a crate is next to the agent, if so return 1 else 0
     """
 
+    _feature_names = {(1,): "True", (0,): "False"}
+
     def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 1)
+        super().__init__(agent, 1, self._feature_names)
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -505,26 +548,26 @@ class InstantDeathDirections(BaseFeature):
 
             # up
             for i in range(s.BOMB_POWER + 1):
-                if field[y + i, x] != -1:
-                    next_explosion_map[y + i, x] = 4
+                if field[x, y + i] != -1:
+                    next_explosion_map[x, y + i] = 4
                 else:
                     break
             # down
             for i in range(s.BOMB_POWER + 1):
-                if field[y - i, x] != -1:
-                    next_explosion_map[y - i, x] = 4
+                if field[x, y - i] != -1:
+                    next_explosion_map[x, y - i] = 4
                 else:
                     break
             # left
             for i in range(s.BOMB_POWER + 1):
-                if field[y, x - i] != -1:
-                    next_explosion_map[y, x - i] = 4
+                if field[x - i, y] != -1:
+                    next_explosion_map[x - i, y] = 4
                 else:
                     break
             # right
             for i in range(s.BOMB_POWER + 1):
-                if field[y, x + i] != -1:
-                    next_explosion_map[y, x + i] = 4
+                if field[x + i, y] != -1:
+                    next_explosion_map[x + i, y] = 4
                 else:
                     break
 
@@ -533,7 +576,7 @@ class InstantDeathDirections(BaseFeature):
 
         res = []
         # all directions
-        for (i, j) in zip([-1, 1, 0, 0], [0, 0, -1, 1]):
+        for (i, j) in zip(DIRECTION_MAP.values()):
 
             # check if explosion will be present in next step
             if next_explosion_map[sy + i, sx + j] > 1:
@@ -556,8 +599,16 @@ class OmegaMovementFeature(BaseFeature):
     Manages multiple movement related features.
     """
 
+    _feature_names = {
+        DIRECTION_MAP[DirectionEnum.UP]: "Up",
+        DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
+        DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
+        DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
+        (0, 0): "Wait WTF",
+    }
+
     def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 2)
+        super().__init__(agent, 2, self._feature_names)
         self.coin_feature = BFSCoinFeature(agent)
         self.crate_feature = BFSCrateFeature(agent)
         self.runaway_feature = ClosestSafeSpaceDirection(agent)

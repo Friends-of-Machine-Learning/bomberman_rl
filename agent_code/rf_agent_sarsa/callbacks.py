@@ -31,7 +31,7 @@ def setup(self):
         features.CanPlaceBombFeature(self),
         # features.BombCrateFeature(self),
         features.NextToCrate(self),
-        # features.AvoidBombFeature(self),
+        # eatures.BombDistanceDirectionsFeature(self),
         # features.RunawayDirectionFeature(self),
         # features.BombViewFeature(self),
         features.InstantDeathDirections(self),

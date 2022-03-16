@@ -59,7 +59,7 @@ def BFS(self_pos: Tuple[int, int], field: np.ndarray, goal: int = 1) -> Tuple[in
 
             # Skip invalid fields
             # Only 0 and goal is valid to move to.
-            if field[n_x, n_y] != 0 or field[n_x, n_y] != goal:
+            if not (field[n_x, n_y] == 0 or field[n_x, n_y] == goal):
                 continue
 
             # no parent yet
