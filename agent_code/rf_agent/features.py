@@ -243,16 +243,33 @@ class BombCrateFeature(BaseFeature):
     ) -> FeatureSpace:
         field = game_state["field"]
         pos = game_state["self"][3]
-        sx, sy = pos
+        x, y = pos
 
-        if 1 in field[sx, sy : sy + s.BOMB_POWER]:
-            return self.can_place
-        if 1 in field[sx, sy - s.BOMB_POWER - 1 : sy]:  # -1 to fix OBO
-            return self.can_place
-        if 1 in field[sx : sx + s.BOMB_POWER, sy]:
-            return self.can_place
-        if 1 in field[sx - s.BOMB_POWER - 1 : sx, sy]:  # -1 to fix OBO
-            return self.can_place
+        # down
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y + i] == -1:
+                break
+            elif field[x, y + i] == 1:
+                return self.can_place
+
+        # up
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y - i] == -1:
+                break
+            elif field[x, y - i] == 1:
+                return self.can_place
+        # right
+        for i in range(s.BOMB_POWER + 1):
+            if field[x + i, y] == -1:
+                break
+            elif field[x + i, y] == 1:
+                return self.can_place
+        # left
+        for i in range(s.BOMB_POWER + 1):
+            if field[x - i, y] == -1:
+                break
+            elif field[x - i, y] == 1:
+                return self.can_place
 
         return np.array([0])
 
@@ -332,10 +349,12 @@ class BombViewFeature(BaseFeature):
 
         field = game_state["field"].copy()
         for (x, y), _ in bombs:
-            field[y, x] = self.bomb_val
+            field[x, y] = self.bomb_val
 
         pos = game_state["self"][3]
         sx, sy = pos
+
+        # ToDo: Check if wall in view to bomb
 
         upper = max(sy - s.BOMB_POWER, 0)
         lower = min(sy + s.BOMB_POWER + 1, s.ROWS)
@@ -391,8 +410,8 @@ class ClosestSafeSpaceDirection(BaseFeature):
     }
 
     def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 4, self._feature_names)
-        self.bomb_val = -3  # represents the bomb in the field
+        super().__init__(agent, 2, self._feature_names)
+        self.bomb_val = -4  # represents the bomb in the field
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -402,45 +421,43 @@ class ClosestSafeSpaceDirection(BaseFeature):
             return 0, 0
 
         field = game_state["field"].copy()
-        for (x, y), _ in bombs:
-            field[x, y] = self.bomb_val
 
         pos = game_state["self"][3]
         sx, sy = pos
 
         explosionmask = field.copy()
         for (x, y), _ in bombs:
-            explosionmask[x, y] = self.bomb_val
+            explosionmask[x, y] += self.bomb_val
 
             # up
             for i in range(s.BOMB_POWER + 1):
                 if explosionmask[x, y + i] != -1:
-                    explosionmask[x, y + i] = -4
+                    explosionmask[x, y + i] += self.bomb_val
                 else:
                     break
             # down
             for i in range(s.BOMB_POWER + 1):
                 if explosionmask[x, y - i] != -1:
-                    explosionmask[x, y - i] = -4
+                    explosionmask[x, y - i] += self.bomb_val
                 else:
                     break
             # left
             for i in range(s.BOMB_POWER + 1):
                 if explosionmask[x - i, y] != -1:
-                    explosionmask[x - i, y] = -4
+                    explosionmask[x - i, y] += self.bomb_val
                 else:
                     break
             # right
             for i in range(s.BOMB_POWER + 1):
                 if explosionmask[x + i, y] != -1:
-                    explosionmask[x + i, y] = -4
+                    explosionmask[x + i, y] += self.bomb_val
                 else:
                     break
 
         if explosionmask[sx, sy] == 0:
             return 0, 0
 
-        return BFS(pos, explosionmask, 0)
+        return BFS(pos, explosionmask, 0, self.bomb_val)
 
 
 class RunawayDirectionFeature(BaseFeature):
@@ -537,7 +554,7 @@ class InstantDeathDirections(BaseFeature):
     ) -> FeatureSpace:
 
         field = game_state["field"]
-        next_explosion_map = game_state["explosion_map"].copy() - 1
+        next_explosion_map = game_state["explosion_map"].copy() + 1
         next_explosion_map[next_explosion_map < 0] = 0
 
         for (x, y), t in game_state["bombs"]:
@@ -612,6 +629,8 @@ class OmegaMovementFeature(BaseFeature):
         self.coin_feature = BFSCoinFeature(agent)
         self.crate_feature = BFSCrateFeature(agent)
         self.runaway_feature = ClosestSafeSpaceDirection(agent)
+        self.instant_death_direction_feature = InstantDeathDirections(agent)
+        self.wall_in_direction_feature = WallInDirectionFeature(agent)
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -619,10 +638,53 @@ class OmegaMovementFeature(BaseFeature):
         c_x, c_y = self.coin_feature.state_to_feature(agent, game_state)
         cr_x, cr_y = self.crate_feature.state_to_feature(agent, game_state)
         r_x, r_y = self.runaway_feature.state_to_feature(agent, game_state)
+        u, r, d, l = self.wall_in_direction_feature.state_to_feature(agent, game_state)
+        du, dr, dd, dl, ds = self.instant_death_direction_feature.state_to_feature(
+            agent, game_state
+        )
 
         # Most important, do not die
         if r_x or r_y:
             return r_x, r_y
         if c_x or c_y:
+            if OmegaMovementFeature.mov2_equal_mov4(
+                (c_x, c_y), (u, r, d, l)
+            ) or OmegaMovementFeature.mov2_equal_mov4((c_x, c_y), (du, dr, dd, dl)):
+                return 0, 0
             return c_x, c_y
+        if OmegaMovementFeature.mov2_equal_mov4(
+            (cr_x, cr_y), (u, r, d, l)
+        ) or OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), (du, dr, dd, dl)):
+            return 0, 0
         return cr_x, cr_y
+
+    @staticmethod
+    def mov2_equal_mov4(mov2: Tuple[int, int], mov4: Tuple[int, int, int, int]) -> bool:
+        x, y = mov2  # The suggested x or y direction
+        # Either one or none of them is 1 else 0
+
+        u, r, d, l = mov4
+
+        return (
+            (x == 1 and r == 1)
+            or (x == -1 and l == 1)
+            or (y == 1 and d == 1)
+            or (y == -1 and u == 1)
+        )
+
+
+class ShouldDropBombFeature(BaseFeature):
+    def __init__(
+        self, agent: SimpleNamespace, feature_size: int = 1, feature_names: dict = None
+    ):
+        super().__init__(agent, 1, feature_names)
+        self.can_drop_f = CanPlaceBombFeature(agent)
+        self.close_to_crate = BombCrateFeature(agent)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        if not bool(self.can_drop_f.state_to_feature(agent, game_state)[0]):
+            return [0]
+
+        return self.close_to_crate.state_to_feature(agent, game_state)

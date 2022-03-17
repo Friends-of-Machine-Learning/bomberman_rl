@@ -18,8 +18,8 @@ Transition = namedtuple(
 )
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 800  # keep only ... last transitions
-END_TRANSITION_HISTORY_SIZE = 20  # keep only ... last transitions
+TRANSITION_HISTORY_SIZE = 800 * 4  # keep only ... last transitions
+END_TRANSITION_HISTORY_SIZE = 20 * 4  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 # Events
@@ -40,8 +40,8 @@ def setup_training(self):
     # (s, a, r, s')
     # self.begin_transition = []
     self.custom_events = [ev.UselessBombEvent()]
-    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
-    self.end_transitions = deque(maxlen=END_TRANSITION_HISTORY_SIZE)
+    self.transitions = []
+    self.end_transitions = []
 
 
 def game_events_occurred(
@@ -186,13 +186,11 @@ def reward_from_events(self, events: List[str]) -> int:
     game_rewards = {
         # GOOD
         e.COIN_COLLECTED: 5,
-        e.CRATE_DESTROYED: 1,
-        e.BOMB_DROPPED: 0.5,
+        e.CRATE_DESTROYED: 2,
         # BAD
-        e.KILLED_SELF: -7,
-        e.INVALID_ACTION: -2,
-        ev.UselessBombEvent.E: -3,
-        e.WAITED: -0.1,
+        e.KILLED_SELF: -6,
+        e.BOMB_DROPPED: -0.5
+        # e.INVALID_ACTION: -0.2,
     }
     reward_sum = 0
     for event in events:

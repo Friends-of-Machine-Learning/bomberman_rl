@@ -39,7 +39,9 @@ OPPOSITE_DIRECTION = {
 }
 
 
-def BFS(self_pos: Tuple[int, int], field: np.ndarray, goal: int = 1) -> Tuple[int, int]:
+def BFS(
+    self_pos: Tuple[int, int], field: np.ndarray, goal: int = 1, ignore: int = -100
+) -> Tuple[int, int]:
     """
     Breath First Search Algorithm to find a given value in an 2 dimensional np.ndarray.
     Takes the start position, the field and the goal value to search. Returns (X, Y) direction Tuple.
@@ -59,7 +61,11 @@ def BFS(self_pos: Tuple[int, int], field: np.ndarray, goal: int = 1) -> Tuple[in
 
             # Skip invalid fields
             # Only 0 and goal is valid to move to.
-            if not (field[n_x, n_y] == 0 or field[n_x, n_y] == goal):
+            if not (
+                field[n_x, n_y] == 0
+                or field[n_x, n_y] == goal
+                or field[n_x, n_y] == ignore
+            ):
                 continue
 
             # no parent yet
