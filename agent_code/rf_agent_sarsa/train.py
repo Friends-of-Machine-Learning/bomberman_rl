@@ -224,8 +224,8 @@ def reward_from_events(self, events: List[str]) -> int:
 
 def q_function_train(
     self,
-    sarsa_transitions: List[Transition],
-    sarsa_end_transitions: List[Transition],
+    sarsa_transitions: List[SARSA],
+    sarsa_end_transitions: List[SARSA],
     action_index: int,
     gamma: float = 0.7,
     alpha: float = 0.075,
