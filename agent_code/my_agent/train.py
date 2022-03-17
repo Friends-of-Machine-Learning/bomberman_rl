@@ -155,22 +155,26 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
 
 def reward_from_events(self, events: List[str]) -> int:
-    game_rewards = {
-        e.COIN_COLLECTED: 3,
-        e.CRATE_DESTROYED: 2,
-        e.BOMB_DROPPED: 1,
-        RUNAWAY_EVENT: 0.5,
-        e.KILLED_SELF: -6,
-        e.INVALID_ACTION: -0.2,
-        # e.WAITED: -0.2,
-        # BACKTRACK_EVENT: -0.1,
-    }
     """
     *This is not a required function, but an idea to structure your code.*
 
     Here you can modify the rewards your agent get so as to en/discourage
     certain behavior.
     """
+    game_rewards = {
+        # GOOD
+        e.COIN_COLLECTED: 5,
+        e.CRATE_DESTROYED: 2,
+        e.MOVED_UP: 0.1,
+        e.MOVED_DOWN: 0.1,
+        e.MOVED_LEFT: 0.1,
+        e.MOVED_RIGHT: 0.1,
+        # BAD
+        e.KILLED_SELF: -6,
+        e.BOMB_DROPPED: 0.5
+        # e.INVALID_ACTION: -0.2,
+    }
+
     reward_sum = 0
     for event in events:
         if event in game_rewards:

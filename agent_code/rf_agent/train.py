@@ -40,8 +40,8 @@ def setup_training(self):
     # (s, a, r, s')
     # self.begin_transition = []
     self.custom_events = [ev.UselessBombEvent()]
-    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
-    self.end_transitions = deque(maxlen=END_TRANSITION_HISTORY_SIZE)
+    self.transitions = []
+    self.end_transitions = []
 
 
 def game_events_occurred(
@@ -156,13 +156,20 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         for transition in self.transitions:
             transition_for_action.setdefault(transition.action, []).append(transition)
 
-        for action in ACTIONS:
-            q_function_train(
-                self,
-                transition_for_action.get(action, []),
-                end_transition_for_action.get(action, []),
-                ACTION_TO_INDEX[action],
-            )
+        # initialize the forest with 0
+        feature_size = sum(f.get_feature_size() for f in self.features_used)
+        for tree in self.model:
+            tree.fit(np.zeros((1, feature_size)), [0])
+
+        # try to converge the forest to the q function
+        for _ in range(20):
+            for action in ACTIONS:
+                q_function_train(
+                    self,
+                    transition_for_action.get(action, []),
+                    end_transition_for_action.get(action, []),
+                    ACTION_TO_INDEX[action],
+                )
 
         # Store the model
         with open("my-saved-model.pt", "wb") as file:
@@ -178,10 +185,11 @@ def reward_from_events(self, events: List[str]) -> int:
     """
     game_rewards = {
         # GOOD
-        e.COIN_COLLECTED: 3,
+        e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 2,
         # BAD
         e.KILLED_SELF: -6,
+        e.BOMB_DROPPED: -0.5
         # e.INVALID_ACTION: -0.2,
     }
     reward_sum = 0

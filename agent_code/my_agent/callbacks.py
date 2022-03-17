@@ -36,7 +36,8 @@ def setup(self):
         # features.InstantDeathDirections(self),
         features.OmegaMovementFeature(self),
         features.NextToCrate(self),
-        features.CanPlaceBombFeature(self),
+        # features.CanPlaceBombFeature(self),
+        features.BombCrateFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):

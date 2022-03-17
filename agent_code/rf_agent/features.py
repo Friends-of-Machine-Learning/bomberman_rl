@@ -243,16 +243,33 @@ class BombCrateFeature(BaseFeature):
     ) -> FeatureSpace:
         field = game_state["field"]
         pos = game_state["self"][3]
-        sx, sy = pos
+        x, y = pos
 
-        if 1 in field[sx, sy : sy + s.BOMB_POWER]:
-            return self.can_place
-        if 1 in field[sx, sy - s.BOMB_POWER - 1 : sy]:  # -1 to fix OBO
-            return self.can_place
-        if 1 in field[sx : sx + s.BOMB_POWER, sy]:
-            return self.can_place
-        if 1 in field[sx - s.BOMB_POWER - 1 : sx, sy]:  # -1 to fix OBO
-            return self.can_place
+        # down
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y + i] == -1:
+                break
+            elif field[x, y + i] == 1:
+                return self.can_place
+
+        # up
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y - i] == -1:
+                break
+            elif field[x, y - i] == 1:
+                return self.can_place
+        # right
+        for i in range(s.BOMB_POWER + 1):
+            if field[x + i, y] == -1:
+                break
+            elif field[x + i, y] == 1:
+                return self.can_place
+        # left
+        for i in range(s.BOMB_POWER + 1):
+            if field[x - i, y] == -1:
+                break
+            elif field[x - i, y] == 1:
+                return self.can_place
 
         return np.array([0])
 
@@ -332,10 +349,12 @@ class BombViewFeature(BaseFeature):
 
         field = game_state["field"].copy()
         for (x, y), _ in bombs:
-            field[y, x] = self.bomb_val
+            field[x, y] = self.bomb_val
 
         pos = game_state["self"][3]
         sx, sy = pos
+
+        # ToDo: Check if wall in view to bomb
 
         upper = max(sy - s.BOMB_POWER, 0)
         lower = min(sy + s.BOMB_POWER + 1, s.ROWS)
@@ -652,3 +671,20 @@ class OmegaMovementFeature(BaseFeature):
             or (y == 1 and d == 1)
             or (y == -1 and u == 1)
         )
+
+
+class ShouldDropBombFeature(BaseFeature):
+    def __init__(
+        self, agent: SimpleNamespace, feature_size: int = 1, feature_names: dict = None
+    ):
+        super().__init__(agent, 1, feature_names)
+        self.can_drop_f = CanPlaceBombFeature(agent)
+        self.close_to_crate = BombCrateFeature(agent)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        if not bool(self.can_drop_f.state_to_feature(agent, game_state)[0]):
+            return [0]
+
+        return self.close_to_crate.state_to_feature(agent, game_state)

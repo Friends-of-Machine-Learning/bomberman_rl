@@ -24,15 +24,13 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    self.feature_print: bool = True
+    self.feature_print: bool = False
 
     self.features_used = [
         features.OmegaMovementFeature(self),
-        # features.WallInDirectionFeature(self),
         features.CanPlaceBombFeature(self),
         features.NextToCrate(self),
-        # features.InstantDeathDirections(self),
-        # features.BombViewFeature(self),
+        features.BombCrateFeature(self),
     ]
     self.keep_model: bool = False
 
