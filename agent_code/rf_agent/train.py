@@ -4,9 +4,9 @@ from collections import namedtuple
 from typing import List
 
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
 
 import events as e
+from . import events as ev
 from .callbacks import ACTIONS
 from .callbacks import state_to_features
 from .utils import ACTION_TO_INDEX
@@ -39,8 +39,9 @@ def setup_training(self):
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
     # self.begin_transition = []
-    self.transitions = []
-    self.end_transitions = []
+    self.custom_events = [ev.UselessBombEvent()]
+    self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
+    self.end_transitions = deque(maxlen=END_TRANSITION_HISTORY_SIZE)
 
 
 def game_events_occurred(
@@ -71,17 +72,12 @@ def game_events_occurred(
     )
 
     if old_game_state is None:
-        # self.begin_transitions.append(
-        #    Transition(
-        #        self_action,
-        #        None,
-        #        state_to_features(self, new_game_state),
-        #        0,
-        #        0,
-        #        reward_from_events(self, events),
-        #    )
-        # )
         return
+
+    for custom_event in self.custom_events:
+        custom_event.game_events_occurred(
+            old_game_state, self_action, new_game_state, events
+        )
 
     # state_to_features is defined in callbacks.py
     self.transitions.append(
@@ -135,6 +131,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         f'Encountered event(s) {", ".join(map(repr, events))} in final step'
     )
 
+    for custom_event in self.custom_events:
+        custom_event.game_events_occurred(last_game_state, last_action, None, events)
+
     self.end_transitions.append(
         Transition(
             last_action,
@@ -178,14 +177,15 @@ def reward_from_events(self, events: List[str]) -> int:
     certain behavior.
     """
     game_rewards = {
+        # GOOD
         e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 1,
-        RUNAWAY_EVENT: 0.5,
-        e.KILLED_SELF: -6,
-        e.BOMB_DROPPED: 1,
-        e.INVALID_ACTION: -0.2,
-        e.WAITED: -0.2,
-        BACKTRACK_EVENT: -0.1,
+        e.BOMB_DROPPED: 0.5,
+        # BAD
+        e.KILLED_SELF: -7,
+        e.INVALID_ACTION: -2,
+        ev.UselessBombEvent.E: -3,
+        e.WAITED: -0.1,
     }
     reward_sum = 0
     for event in events:

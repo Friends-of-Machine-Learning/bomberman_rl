@@ -1,16 +1,16 @@
 import pickle
-from collections import deque
 from collections import namedtuple
+from types import SimpleNamespace
 from typing import List
 
 import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 
 import events as e
+from . import events as ev
 from .callbacks import ACTIONS
 from .callbacks import state_to_features
 from .utils import ACTION_TO_INDEX
-from .utils import OPPOSITE_DIRECTION
 
 # This is only an example!
 Transition = namedtuple(
@@ -21,51 +21,45 @@ SARSA = namedtuple(
     "SARSA", ("old_features", "old_action", "reward", "new_features", "new_action")
 )
 
-# Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 800  # keep only ... last transitions
-END_TRANSITION_HISTORY_SIZE = 20  # keep only ... last transitions
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
-
-# Events
-PLACEHOLDER_EVENT = "PLACEHOLDER"
+# Custom Events
 BACKTRACK_EVENT = "BACKTRACK"
 RUNAWAY_EVENT = "RUNAWAY"
 
 
-def setup_training(self):
+def setup_training(self: SimpleNamespace) -> None:
     """
     Initialise self for training purpose.
-
     This is called after `setup` in callbacks.py.
 
-    :param self: This object is passed to all callbacks and you can set arbitrary values.
+    :param self: This SimpleNamespace Object is passed to all callbacks and you can set arbitrary values.
     """
-    # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
-    # self.begin_transition = []
+    self.custom_events = [ev.UselessBombEvent()]
+
+    # Used to keep track of Transitions on per Round basis to create SARSA Pairs. Will be cleared after each Round.
     self.last_game_transitions = []
+    # Special Case, only needed for last Transition on Round.
     self.last_game_end_transition = None
 
+    # Stores all SARSA Transitions.
     self.sarsa_transitions = []
+    # Stores all SARSA Transitions from end Round Transitions
     self.sarsa_end_transitions = []
 
 
 def game_events_occurred(
-    self,
+    self: SimpleNamespace,
     old_game_state: dict,
     self_action: str,
     new_game_state: dict,
     events: List[str],
-):
+) -> None:
     """
     Called once per step to allow intermediate rewards based on game events.
 
     When this method is called, self.events will contain a list of all game
     events relevant to your agent that occurred during the previous step. Consult
     settings.py to see what events are tracked. You can hand out rewards to your
-    agent based on these events and your knowledge of the (new) game state.
-
-    This is *one* of the places where you could update your agent.
+    agent based on these events, and your knowledge of the (new) game state.
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     :param old_game_state: The state that was passed to the last call of `act`.
@@ -79,6 +73,11 @@ def game_events_occurred(
 
     if old_game_state is None:
         return
+
+    for custom_event in self.custom_events:
+        custom_event.game_events_occurred(
+            old_game_state, self_action, new_game_state, events
+        )
 
     # if (
     #    len(self.sarsa_transitions) > 2
@@ -114,7 +113,9 @@ def game_events_occurred(
     )
 
 
-def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):
+def end_of_round(
+    self: SimpleNamespace, last_game_state: dict, last_action: str, events: List[str]
+) -> None:
     """
     Called at the end of each game or when the agent died to hand out final rewards.
     This replaces game_events_occurred in this round.
@@ -126,6 +127,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     This is also a good place to store an agent that you updated.
 
     :param self: The same object that is passed to all of your callbacks.
+    :param last_game_state: The last game_state of this round.
+    :param last_action: The last action in this round.
+    :param events: All events in this round.
     """
     self.logger.debug(
         f'Encountered event(s) {", ".join(map(repr, events))} in final step'
@@ -140,27 +144,20 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         reward_from_events(self, events),
     )
 
-    # create sarsa tuples from the last game
-    for i in range(len(self.last_game_transitions) - 1):
-
-        old_features = self.last_game_transitions[i].feature
-        old_action = self.last_game_transitions[i].action
-        reward = self.last_game_transitions[i].reward
-        new_features = self.last_game_transitions[i].next_feature
-        new_action = self.last_game_transitions[i + 1].action
+    # Add the last game_end_transition to include last transition
+    self.last_game_transitions.append(self.last_game_end_transition)
+    # create SARSA tuples from the last game
+    for actio, reactio in zip(
+        self.last_game_transitions[:-1], self.last_game_transitions[1:]
+    ):
+        old_features = actio.feature
+        old_action = actio.action
+        reward = actio.reward
+        new_features = actio.next_feature
+        new_action = reactio.action
         self.sarsa_transitions.append(
             SARSA(old_features, old_action, reward, new_features, new_action)
         )
-
-    # for the last transition
-    old_features = self.last_game_transitions[-1].feature
-    old_action = self.last_game_transitions[-1].action
-    reward = self.last_game_transitions[-1].reward
-    new_features = self.last_game_transitions[-1].next_feature
-    new_action = self.last_game_end_transition.action
-    self.sarsa_transitions.append(
-        SARSA(old_features, old_action, reward, new_features, new_action)
-    )
 
     # for the end
     old_features = self.last_game_end_transition.feature
@@ -196,23 +193,23 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         pickle.dump(self.model, file)
 
 
-def reward_from_events(self, events: List[str]) -> int:
+def reward_from_events(self: SimpleNamespace, events: List[str]) -> int:
     """
-    *This is not a required function, but an idea to structure your code.*
-
-    Here you can modify the rewards your agent get so as to en/discourage
-    certain behavior.
+    En/discourage certain behavior of the agent by giving rewards for certain events.
     """
 
     game_rewards = {
         e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 0.5,
-        # RUNAWAY_EVENT: 0.5,
-        e.KILLED_SELF: -7,
-        e.BOMB_DROPPED: 0.5,
+        e.BOMB_DROPPED: 0.15,
+        e.KILLED_SELF: -5,
         e.INVALID_ACTION: -0.1,
-        # e.WAITED: -0.2,
-        BACKTRACK_EVENT: -0.0,
+        e.WAITED: -0.1,
+        e.MOVED_DOWN: 0.1,
+        e.MOVED_UP: 0.1,
+        e.MOVED_LEFT: 0.1,
+        e.MOVED_RIGHT: 0.1,
+        # ev.UselessBombEvent.E: -1,
     }
     reward_sum = 0
     for event in events:
@@ -223,12 +220,11 @@ def reward_from_events(self, events: List[str]) -> int:
 
 
 def q_function_train(
-    self,
+    self: SimpleNamespace,
     sarsa_transitions: List[SARSA],
     sarsa_end_transitions: List[SARSA],
     action_index: int,
     gamma: float = 0.7,
-    alpha: float = 0.075,
 ) -> None:
     model = self.model
     if not sarsa_transitions:
@@ -255,18 +251,13 @@ def q_function_train(
     self.model = model
 
 
-def q_func(model, state) -> np.ndarray:
-    return np.max([forest.predict(state) for forest in model], axis=0)
-
-
-def q_func(model, state, action_indices) -> np.ndarray:
-
+def q_func(
+    model: List[RandomForestRegressor], state: np.ndarray, action_indices: np.ndarray
+) -> np.ndarray:
     res = np.zeros_like(action_indices)
 
-    for act_idx in range(len(ACTIONS)):
+    for act_idx in np.unique(action_indices):
         action_mask = action_indices == act_idx
-
-        if np.any(action_mask):
-            res[action_mask] = model[act_idx].predict(state[action_mask])
+        res[action_mask] = model[act_idx].predict(state[action_mask])
 
     return res

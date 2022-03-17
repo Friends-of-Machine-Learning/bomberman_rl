@@ -23,6 +23,7 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
+    self.debug: bool = False
     self.features_used = [
         # features.CoinForceFeature(self),
         # features.WallInDirectionFeature(self),
@@ -32,9 +33,10 @@ def setup(self):
         # features.BombCrateFeature(self),
         # features.AvoidBombFeature(self),
         # features.CanPlaceBombFeature(self),
-        features.ClosestSafeSpaceDirection(self),
-        features.RunawayDirection(self),
-        features.NextToCrate(self),
+        # features.InstantDeathDirections(self),
+        features.OmegaMovementFeature(self),
+        # features.NextToCrate(self),
+        # features.CanPlaceBombFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
@@ -68,7 +70,7 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
-    features: np.ndarray = state_to_features(self, game_state)
+    features: np.ndarray = state_to_features(self, game_state, True)
     self.logger.debug("Querying model for action.")
 
     self.last_action = np.zeros(6)
@@ -79,7 +81,7 @@ def act(self, game_state: dict) -> str:
     return next_action
 
 
-def state_to_features(self, game_state: dict) -> np.array:
+def state_to_features(self, game_state: dict, debug=False) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
 
@@ -100,8 +102,13 @@ def state_to_features(self, game_state: dict) -> np.array:
     x_feature = []
 
     feature: features.BaseFeature
+    feature_debug_text: list = []
     for feature in self.features_used:
         x = feature.state_to_feature(self, game_state)
+        feature_debug_text.append(feature.feature_to_readable_name(x))
         x_feature.append(x)
+
+    if self.debug and debug:
+        print(", ".join(feature_debug_text))
 
     return np.concatenate(x_feature)
