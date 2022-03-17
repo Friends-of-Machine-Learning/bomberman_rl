@@ -156,13 +156,20 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         for transition in self.transitions:
             transition_for_action.setdefault(transition.action, []).append(transition)
 
-        for action in ACTIONS:
-            q_function_train(
-                self,
-                transition_for_action.get(action, []),
-                end_transition_for_action.get(action, []),
-                ACTION_TO_INDEX[action],
-            )
+        # initialize the forest with 0
+        feature_size = sum(f.get_feature_size() for f in self.features_used)
+        for tree in self.model:
+            tree.fit(np.zeros((1, feature_size)), [0])
+
+        # try to converge the forest to the q function
+        for _ in range(20):
+            for action in ACTIONS:
+                q_function_train(
+                    self,
+                    transition_for_action.get(action, []),
+                    end_transition_for_action.get(action, []),
+                    ACTION_TO_INDEX[action],
+                )
 
         # Store the model
         with open("my-saved-model.pt", "wb") as file:
