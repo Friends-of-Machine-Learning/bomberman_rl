@@ -470,7 +470,8 @@ class RunawayDirectionFeature(BaseFeature):
         self.bomb_val = -3  # represents the bomb in the field
 
     def feature_to_readable_name(self, features: FeatureSpace) -> str:
-        return f"{self.__class__.__name__}: "
+        u, r, d, l = features
+        return f"{self.__class__.__name__}: ({u=}, {r=}, {d=}, {l=})"
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -510,7 +511,7 @@ class RunawayDirectionFeature(BaseFeature):
         return res
 
 
-class NextToCrate(BaseFeature):
+class NextToCrateFeature(BaseFeature):
     """
     Check if a crate is next to the agent, if so return 1 else 0
     """
@@ -541,7 +542,7 @@ class NextToCrate(BaseFeature):
         return np.array([0])
 
 
-class InstantDeathDirections(BaseFeature):
+class InstantDeathDirectionsFeatures(BaseFeature):
     """
     Check for every direction if a step would be lethal
     """
@@ -555,7 +556,6 @@ class InstantDeathDirections(BaseFeature):
 
         field = game_state["field"]
         next_explosion_map = game_state["explosion_map"].copy() + 1
-        next_explosion_map[next_explosion_map < 0] = 0
 
         for (x, y), t in game_state["bombs"]:
 
@@ -611,6 +611,69 @@ class InstantDeathDirections(BaseFeature):
         return res
 
 
+class DangerZoneFeature(BaseFeature):
+    def __init__(
+        self, agent: SimpleNamespace, feature_size: int = 1, feature_names: dict = None
+    ):
+        super().__init__(agent, 9)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+
+        # BEGIN CALCULATGE DANGER ZONE
+        field = game_state["field"]
+        next_explosion_map = game_state["explosion_map"].copy()
+
+        for (x, y), t in game_state["bombs"]:
+            # up
+            for i in range(s.BOMB_POWER + 1):
+                if field[x, y + i] != -1:
+                    next_explosion_map[x, y + i] = t + 2
+                else:
+                    break
+            # down
+            for i in range(s.BOMB_POWER + 1):
+                if field[x, y - i] != -1:
+                    next_explosion_map[x, y - i] = t + 2
+                else:
+                    break
+            # left
+            for i in range(s.BOMB_POWER + 1):
+                if field[x - i, y] != -1:
+                    next_explosion_map[x - i, y] = t + 2
+                else:
+                    break
+            # right
+            for i in range(s.BOMB_POWER + 1):
+                if field[x + i, y] != -1:
+                    next_explosion_map[x + i, y] = t + 2
+                else:
+                    break
+        # END OF DANGER ZONE
+
+        pos = game_state["self"][3]
+        sx, sy = pos
+
+        res = []
+        # all directions
+        for i, j in [
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+            (-1, 0),
+            (0, 0),
+            (1, 0),
+            (-1, 1),
+            (0, 1),
+            (1, 1),
+        ]:
+
+            res.append(next_explosion_map[sx + i, sy + j])
+
+        return res
+
+
 class OmegaMovementFeature(BaseFeature):
     """
     Manages multiple movement related features.
@@ -629,7 +692,7 @@ class OmegaMovementFeature(BaseFeature):
         self.coin_feature = BFSCoinFeature(agent)
         self.crate_feature = BFSCrateFeature(agent)
         self.runaway_feature = ClosestSafeSpaceDirection(agent)
-        self.instant_death_direction_feature = InstantDeathDirections(agent)
+        self.instant_death_direction_feature = InstantDeathDirectionsFeatures(agent)
         self.wall_in_direction_feature = WallInDirectionFeature(agent)
 
     def state_to_feature(

@@ -92,8 +92,8 @@ def game_events_occurred(
     )
 
     if (
-        len(self.transitions) > 2
-        and OPPOSITE_DIRECTION[self_action] == self.transitions[-2].action
+        len(self.transitions) > 3
+        and OPPOSITE_DIRECTION.get(self_action, None) == self.transitions[-2].action
     ):
         events.append(BACKTRACK_EVENT)
 
@@ -187,10 +187,14 @@ def reward_from_events(self, events: List[str]) -> int:
         # GOOD
         e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 2,
+        e.MOVED_UP: 0.05,
+        e.MOVED_DOWN: 0.05,
+        e.MOVED_LEFT: 0.05,
+        e.MOVED_RIGHT: 0.05,
         # BAD
-        e.KILLED_SELF: -6,
-        e.BOMB_DROPPED: -0.5
-        # e.INVALID_ACTION: -0.2,
+        e.KILLED_SELF: -10,
+        e.BOMB_DROPPED: -0.5,
+        e.INVALID_ACTION: -0.2,
     }
     reward_sum = 0
     for event in events:

@@ -27,11 +27,20 @@ def setup(self):
     self.feature_print: bool = False
 
     self.features_used = [
-        features.OmegaMovementFeature(self),
-        features.CanPlaceBombFeature(self),
-        features.NextToCrate(self),
+        features.BFSCoinFeature(self),
+        features.BFSCrateFeature(self),
+        features.InstantDeathDirectionsFeatures(self),
+        features.WallInDirectionFeature(self),
+        features.NextToCrateFeature(self),
         features.BombCrateFeature(self),
+        # features.BombDistanceDirectionsFeature(self),  # Works but useless
+        features.BombViewFeature(self),
+        features.ClosestSafeSpaceDirection(self),
+        features.RunawayDirectionFeature(self),
+        features.DangerZoneFeature(self),
+        features.CanPlaceBombFeature(self),
     ]
+
     self.keep_model: bool = False
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
@@ -65,7 +74,6 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
 
-    # todo Exploration vs exploitation
     random_prob = 0.1
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
