@@ -106,31 +106,15 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     for custom_event in self.custom_events:
         custom_event.game_events_occurred(last_game_state, last_action, None, events)
 
-    self.end_transitions.append(
-        Transition(
-            last_action,
-            state_to_features(self, last_game_state),
-            None,
-            last_game_state["step"],
-            last_game_state["round"],
-            reward_from_events(self, events),
-        )
+    end_round_q_table(
+        self,
+        last_game_state,
+        reward_from_events(self, events),
+        ACTION_TO_INDEX[last_action],
     )
-
-    if last_game_state["round"] % 10 == 0:
-        # Call Q-Function for each action, and its transitions
-        end_transition_for_action = {}
-        for transition in self.end_transitions:
-            end_transition_for_action.setdefault(transition.action, []).append(
-                transition
-            )
-        transition_for_action = {}
-        for transition in self.transitions:
-            transition_for_action.setdefault(transition.action, []).append(transition)
-
-        # Store the model
-        with open("my-saved-model.pt", "wb") as file:
-            pickle.dump(self.model, file)
+    # Store the model
+    with open("my-saved-model.pt", "wb") as file:
+        pickle.dump(self.model, file)
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -172,5 +156,20 @@ def update_q_table(
     Q[q_old_index] = Q[q_old_index] + lr * (
         reward + gamma * np.max(Q[tuple(list(new_state))]) - Q[q_old_index]
     )
+
+    self.model = Q
+
+
+def end_round_q_table(
+    self,
+    old_state,
+    reward,
+    action_index: int,
+    lr: float = 0.8,
+) -> None:
+    Q = self.model
+
+    q_old_index = tuple(list(old_state) + [action_index])
+    Q[q_old_index] = Q[q_old_index] + lr * (reward - Q[q_old_index])
 
     self.model = Q
