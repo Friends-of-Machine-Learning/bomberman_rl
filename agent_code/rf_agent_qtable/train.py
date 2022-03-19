@@ -108,7 +108,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
     end_round_q_table(
         self,
-        last_game_state,
+        state_to_features(self, last_game_state),
         reward_from_events(self, events),
         ACTION_TO_INDEX[last_action],
     )
@@ -128,10 +128,13 @@ def reward_from_events(self, events: List[str]) -> int:
         # GOOD
         e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 2,
+        e.MOVED_UP: 1,
+        e.MOVED_DOWN: 1,
+        e.MOVED_LEFT: 1,
+        e.MOVED_RIGHT: 1,
+        e.BOMB_DROPPED: 0.5,
         # BAD
         e.KILLED_SELF: -10,
-        e.BOMB_DROPPED: -0.5,
-        e.INVALID_ACTION: -0.2,
     }
     reward_sum = 0
     for event in events:
@@ -147,8 +150,8 @@ def update_q_table(
     new_state,
     reward,
     action_index: int,
-    lr: float = 0.8,
-    gamma: float = 0.075,
+    lr: float = 0.7,
+    gamma: float = 0.175,
 ) -> None:
     Q = self.model
 

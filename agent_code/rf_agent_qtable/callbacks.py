@@ -27,18 +27,9 @@ def setup(self):
     self.feature_print: bool = False
 
     self.features_used = [
-        # features.OmegaMovementFeature(self),
-        features.BFSCoinFeature(self),
-        features.BFSCrateFeature(self),
-        features.InstantDeathDirectionsFeatures(self),
-        features.WallInDirectionFeature(self),
-        features.NextToCrateFeature(self),
-        features.BombCrateFeature(self),
-        features.BombViewFeature(self),
-        features.ClosestSafeSpaceDirection(self),
-        features.RunawayDirectionFeature(self),
-        features.DangerZoneFeature(self),
-        features.CanPlaceBombFeature(self),
+        features.OmegaMovementFeature(self),
+        features.ShouldDropBombFeature(self),
+        # features.NextToCrateFeature(self)
     ]
 
     self.keep_model: bool = False
@@ -50,9 +41,11 @@ def setup(self):
             with open("my-saved-model.pt", "rb") as file:
                 self.model = pickle.load(file)
         else:
-            feature_dims = [x.get_feature_dims() for x in self.features_used] + [
-                len(ACTIONS)
-            ]
+            feature_dims: list = []
+            for f in self.features_used:
+                for _ in range(f.get_feature_size()):
+                    feature_dims.append(f.get_feature_dims())
+            feature_dims.append(len(ACTIONS))
             self.model = np.zeros(tuple(feature_dims))
 
     else:
@@ -119,4 +112,4 @@ def state_to_features(self, game_state: dict, temp: bool = False) -> np.array:
     if self.feature_print and temp:
         print(", ".join(feature_debug_text))
 
-    return np.concatenate(x_feature)
+    return np.concatenate(x_feature).astype(int)
