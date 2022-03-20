@@ -52,7 +52,7 @@ def setup(self):
             with open("my-saved-model.pt", "rb") as file:
                 self.model = pickle.load(file)
         else:
-            self.model = [RandomForestRegressor(n_estimators=20) for _ in ACTIONS]
+            self.model = [RandomForestRegressor(n_estimators=50) for _ in ACTIONS]
 
             for tree in self.model:
                 tree.fit(np.zeros((1, feature_size)), [0])
