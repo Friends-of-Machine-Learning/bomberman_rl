@@ -162,7 +162,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             tree.fit(np.zeros((1, feature_size)), [0])
 
         # try to converge the forest to the q function
-        for _ in range(20):
+        for _ in range(50):
             for action in ACTIONS:
                 q_function_train(
                     self,
@@ -174,6 +174,16 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         # Store the model
         with open("my-saved-model.pt", "wb") as file:
             pickle.dump(self.model, file)
+
+    if last_game_state["round"] % 100 == 0:
+        start = int(np.sqrt(len(self.transitions)))
+
+        print(f"removing {start}/{len(self.transitions)}")
+        self.transitions = self.transitions[start:]
+
+        start = int(np.sqrt(len(self.end_transitions)))
+        print(f"removing {start}/{len(self.end_transitions)}")
+        self.end_transitions = self.end_transitions[start:]
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -187,13 +197,13 @@ def reward_from_events(self, events: List[str]) -> int:
         # GOOD
         e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 2,
-        e.MOVED_UP: 0.05,
-        e.MOVED_DOWN: 0.05,
-        e.MOVED_LEFT: 0.05,
-        e.MOVED_RIGHT: 0.05,
+        # e.MOVED_UP: 0.05,
+        # e.MOVED_DOWN: 0.05,
+        # e.MOVED_LEFT: 0.05,
+        # e.MOVED_RIGHT: 0.05,
         # BAD
         e.KILLED_SELF: -10,
-        e.BOMB_DROPPED: -0.5,
+        # e.BOMB_DROPPED: -0.5,
         e.INVALID_ACTION: -0.2,
     }
     reward_sum = 0
