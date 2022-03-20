@@ -27,18 +27,19 @@ def setup(self):
     self.feature_print: bool = False
 
     self.features_used = [
+        # BFS/Movement Features
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        features.InstantDeathDirectionsFeatures(self),
+        features.ClosestSafeSpaceDirection(self),
+        # Location Info Features
         features.WallInDirectionFeature(self),
         features.NextToCrateFeature(self),
-        features.BombCrateFeature(self),
-        # features.BombDistanceDirectionsFeature(self),  # Works but useless
+        features.CloseCrateCountFeature(self),
+        features.CanPlaceBombFeature(self),
+        # Danger Awareness
         features.BombViewFeature(self),
-        features.ClosestSafeSpaceDirection(self),
         features.RunawayDirectionFeature(self),
         features.DangerZoneFeature(self),
-        features.CanPlaceBombFeature(self),
     ]
 
     self.keep_model: bool = False
@@ -80,13 +81,13 @@ def act(self, game_state: dict) -> str:
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
-    features: np.ndarray = state_to_features(self, game_state, True)
     self.logger.debug("Querying model for action.")
 
-    self.last_action = np.zeros(6)
-    action_index = np.argmax([tree.predict([features]) for tree in self.model])
+    features: np.ndarray = state_to_features(self, game_state, True)
+    f = [features]
+
+    action_index = np.argmax([tree.predict(f) for tree in self.model])
     next_action = ACTIONS[action_index]
-    self.last_action[action_index] = 1
 
     return next_action
 
