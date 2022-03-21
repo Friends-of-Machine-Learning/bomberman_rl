@@ -40,6 +40,9 @@ def setup_training(self):
     # (s, a, r, s')
     # self.begin_transition = []
     self.custom_events = [ev.UselessBombEvent()]
+    self.transitions_for_action = {action: [] for action in ACTIONS}
+    self.end_transitions_for_action = {action: [] for action in ACTIONS}
+
     self.transitions = []
     self.end_transitions = []
 
@@ -79,8 +82,7 @@ def game_events_occurred(
             old_game_state, self_action, new_game_state, events
         )
 
-    # state_to_features is defined in callbacks.py
-    self.transitions.append(
+    self.transitions_for_action[self_action].append(
         Transition(
             self_action,
             state_to_features(self, old_game_state),
@@ -134,7 +136,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     for custom_event in self.custom_events:
         custom_event.game_events_occurred(last_game_state, last_action, None, events)
 
-    self.end_transitions.append(
+    self.end_transitions_for_action[last_action].append(
         Transition(
             last_action,
             state_to_features(self, last_game_state),
@@ -146,64 +148,18 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     )
 
     if last_game_state["round"] % 10 == 0:
-
-        gamma = 0.8
-        # Call Q-Function for each action, and its transitions
-        end_transition_for_action = {}
-        for transition in self.end_transitions:
-            end_transition_for_action.setdefault(transition.action, []).append(
-                transition
-            )
-        transition_for_action = {}
-        for transition in self.transitions:
-            transition_for_action.setdefault(transition.action, []).append(transition)
-
-        # initialize the forest with 0
         feature_size = sum(f.get_feature_size() for f in self.features_used)
         for tree in self.model:
             tree.fit(np.zeros((1, feature_size)), [0])
-
-        # build all static arrays
-
-        rewards = []
-        states_old = []
-        states_new = []
-        states_end = []
-        q_vals_end = []
-
-        for action in ACTIONS:
-            rewards.append(np.array([x.reward for x in transition_for_action[action]]))
-            states_old.append(
-                np.array([x.feature for x in transition_for_action[action]])
-            )
-            states_new.append(
-                np.array([x.next_feature for x in transition_for_action[action]])
-            )
-            states_end.append(
-                np.array([x.feature for x in end_transition_for_action[action]])
-            )
-            q_vals_end.append(
-                np.array([x.reward for x in end_transition_for_action[action]])
-            )
-
         # try to converge the forest to the q function
         for _ in range(50):
             for action in ACTIONS:
-
-                if not transition_for_action[action]:
-                    break
-
-                action_index = ACTION_TO_INDEX[action]
-
-                q_vals = rewards[action_index] + gamma * q_func(
-                    self.model, states_new[action_index]
+                q_function_train(
+                    self,
+                    self.transitions_for_action[action],
+                    self.end_transitions_for_action[action],
+                    ACTION_TO_INDEX[action],
                 )
-
-                if len(states_end[action_index].shape) > 1:
-                    q_vals = np.concatenate((q_vals, q_vals_end[action_index]))
-                    states_old = np.concatenate((states_old, states_end[action_index]))
-
-                self.model[action_index].fit(states_old[action_index], q_vals)
 
         # Store the model
         with open("my-saved-model.pt", "wb") as file:
@@ -228,8 +184,8 @@ game_rewards = {
 game_rewards = {
     # GOOD
     e.COIN_COLLECTED: 5,
-    e.CRATE_DESTROYED: 2,
-    str(ev.AvoidDeathEvent()): 1,
+    e.CRATE_DESTROYED: 1,
+    str(ev.AvoidDeathEvent()): 0.5,
     str(ev.PlacedGoodBombEvent()): 0.5,
     str(ev.NewFieldEvent()): 0.5,
     # BAD

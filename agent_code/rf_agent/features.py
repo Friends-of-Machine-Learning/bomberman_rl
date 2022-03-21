@@ -219,6 +219,7 @@ class BFSCrateFeature(BaseFeature):
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 2)
+        self.wall_in_dir = WallInDirectionFeature(agent)
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -226,7 +227,13 @@ class BFSCrateFeature(BaseFeature):
         field = game_state["field"].copy()
 
         self_pos = game_state["self"][3]
-        return BFS(self_pos, field, 1)
+        x, y = BFS(self_pos, field, 1)
+        u, d, l, r = self.wall_in_dir.state_to_feature(agent, game_state)
+
+        # If Wall in Move Direction return 0, as we already stand in front of the wall
+        if OmegaMovementFeature.mov2_equal_mov4((x, y), (u, r, d, l)):
+            return 0, 0
+        return x, y
 
 
 class BombCrateFeature(BaseFeature):
@@ -800,7 +807,12 @@ class ShouldDropBombFeature(BaseFeature):
         return self.close_to_crate.state_to_feature(agent, game_state)
 
 
-class SeeDistanceDirections(BaseFeature):
+class SeeDistanceDirectionsFeature(BaseFeature):
+    """
+    Returns the distance the agent can see/walk in each direction.
+    Up, Right, Down, Left
+    """
+
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 4)
 
