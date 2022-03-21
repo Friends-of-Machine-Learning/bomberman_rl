@@ -146,6 +146,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     )
 
     if last_game_state["round"] % 10 == 0:
+
+        gamma = 0.8
         # Call Q-Function for each action, and its transitions
         end_transition_for_action = {}
         for transition in self.end_transitions:
@@ -161,15 +163,47 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         for tree in self.model:
             tree.fit(np.zeros((1, feature_size)), [0])
 
+        # build all static arrays
+
+        rewards = []
+        states_old = []
+        states_new = []
+        states_end = []
+        q_vals_end = []
+
+        for action in ACTIONS:
+            rewards.append(np.array([x.reward for x in transition_for_action[action]]))
+            states_old.append(
+                np.array([x.feature for x in transition_for_action[action]])
+            )
+            states_new.append(
+                np.array([x.next_feature for x in transition_for_action[action]])
+            )
+            states_end.append(
+                np.array([x.feature for x in end_transition_for_action[action]])
+            )
+            q_vals_end.append(
+                np.array([x.reward for x in end_transition_for_action[action]])
+            )
+
         # try to converge the forest to the q function
         for _ in range(50):
             for action in ACTIONS:
-                q_function_train(
-                    self,
-                    transition_for_action.get(action, []),
-                    end_transition_for_action.get(action, []),
-                    ACTION_TO_INDEX[action],
+
+                if not transition_for_action[action]:
+                    break
+
+                action_index = ACTION_TO_INDEX[action]
+
+                q_vals = rewards[action_index] + gamma * q_func(
+                    self.model, states_new[action_index]
                 )
+
+                if len(states_end[action_index].shape) > 1:
+                    q_vals = np.concatenate((q_vals, q_vals_end[action_index]))
+                    states_old = np.concatenate((states_old, states_end[action_index]))
+
+                self.model[action_index].fit(states_old[action_index], q_vals)
 
         # Store the model
         with open("my-saved-model.pt", "wb") as file:
