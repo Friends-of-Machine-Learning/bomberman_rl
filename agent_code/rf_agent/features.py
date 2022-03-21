@@ -751,3 +751,47 @@ class ShouldDropBombFeature(BaseFeature):
             return [0]
 
         return self.close_to_crate.state_to_feature(agent, game_state)
+
+
+class SeeDistanceDirections(BaseFeature):
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 4)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+
+        sx, sy = game_state["self"][3]
+        field = game_state["field"]
+
+        res = []
+
+        # up
+        i = 0
+        while field[sx, sy - i] == 0:
+            i += 1
+
+        res.append(i)
+
+        # right
+        i = 0
+        while field[sx + i, sy] == 0:
+            i += 1
+
+        res.append(i)
+
+        # down
+        i = 0
+        while field[sx, sy + i] == 0:
+            i += 1
+
+        res.append(i)
+
+        # left
+        i = 0
+        while field[sx - i, sy] == 0:
+            i += 1
+
+        res.append(i)
+
+        return res

@@ -39,6 +39,7 @@ def setup(self):
         features.RunawayDirectionFeature(self),
         features.DangerZoneFeature(self),
         features.CanPlaceBombFeature(self),
+        features.SeeDistanceDirections(self),
     ]
 
     self.keep_model: bool = False
