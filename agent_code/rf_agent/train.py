@@ -209,15 +209,35 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         with open("my-saved-model.pt", "wb") as file:
             pickle.dump(self.model, file)
 
-    if last_game_state["round"] % 100 == 0:
-        start = int(np.sqrt(len(self.transitions)))
 
-        print(f"removing {start}/{len(self.transitions)}")
-        self.transitions = self.transitions[start:]
-
-        start = int(np.sqrt(len(self.end_transitions)))
-        print(f"removing {start}/{len(self.end_transitions)}")
-        self.end_transitions = self.end_transitions[start:]
+# cache in global space, no need to construct each time
+game_rewards = {
+    # GOOD
+    e.COIN_COLLECTED: 5,
+    e.CRATE_DESTROYED: 2,
+    str(ev.AvoidDeathEvent()): 1,
+    str(ev.PlacedGoodBombEvent()): 0.5,
+    str(ev.NewFieldEvent()): 0.5,
+    # BAD
+    e.KILLED_SELF: -10,
+    e.INVALID_ACTION: -1,
+    str(ev.UselessBombEvent()): -3,
+    e.WAITED: -0.1,
+}
+# cache in global space, no need to construct each time
+game_rewards = {
+    # GOOD
+    e.COIN_COLLECTED: 5,
+    e.CRATE_DESTROYED: 2,
+    str(ev.AvoidDeathEvent()): 1,
+    str(ev.PlacedGoodBombEvent()): 0.5,
+    str(ev.NewFieldEvent()): 0.5,
+    # BAD
+    e.KILLED_SELF: -10,
+    e.INVALID_ACTION: -1,
+    str(ev.UselessBombEvent()): -3,
+    e.WAITED: -0.1,
+}
 
 
 def reward_from_events(self, events: List[str]) -> int:
@@ -227,19 +247,8 @@ def reward_from_events(self, events: List[str]) -> int:
     Here you can modify the rewards your agent get so as to en/discourage
     certain behavior.
     """
-    game_rewards = {
-        # GOOD
-        e.COIN_COLLECTED: 5,
-        e.CRATE_DESTROYED: 2,
-        # e.MOVED_UP: 0.05,
-        # e.MOVED_DOWN: 0.05,
-        # e.MOVED_LEFT: 0.05,
-        # e.MOVED_RIGHT: 0.05,
-        # BAD
-        e.KILLED_SELF: -10,
-        # e.BOMB_DROPPED: -0.5,
-        e.INVALID_ACTION: -0.2,
-    }
+    global game_rewards
+
     reward_sum = 0
     for event in events:
         if event in game_rewards:

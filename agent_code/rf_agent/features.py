@@ -274,6 +274,54 @@ class BombCrateFeature(BaseFeature):
         return np.array([0])
 
 
+class CloseCrateCountFeature(BaseFeature):
+    """
+    Return the amount of bombable crates for Up Right Down Left
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 4)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        field = game_state["field"]
+        pos = game_state["self"][3]
+        x, y = pos
+
+        ret = [0, 0, 0, 0]
+
+        # up
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y - i] == -1:
+                break
+            elif field[x, y - i] == 1:
+                ret[0] += 1
+
+        # right
+        for i in range(s.BOMB_POWER + 1):
+            if field[x + i, y] == -1:
+                break
+            elif field[x + i, y] == 1:
+                ret[1] += 1
+
+        # down
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y + i] == -1:
+                break
+            elif field[x, y + i] == 1:
+                ret[2] += 1
+
+        # left
+        for i in range(s.BOMB_POWER + 1):
+            if field[x - i, y] == -1:
+                break
+            elif field[x - i, y] == 1:
+                ret[3] += 1
+
+        return ret
+
+
 class BombDistanceDirectionsFeature(BaseFeature):
     """
     Return the distance in every direction to the closest bomb.
@@ -668,7 +716,6 @@ class DangerZoneFeature(BaseFeature):
             (0, 1),
             (1, 1),
         ]:
-
             res.append(next_explosion_map[sx + i, sy + j])
 
         return res
