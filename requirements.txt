@@ -6,6 +6,7 @@ distlib==0.3.4
 filelock==3.6.0
 identify==2.4.11
 joblib==1.1.0
+mypy==0.931
 mypy-extensions==0.4.3
 nodeenv==1.6.0
 numpy==1.22.2
@@ -21,5 +22,6 @@ threadpoolctl==3.1.0
 toml==0.10.2
 tomli==2.0.1
 tqdm==4.63.0
-typing_extensions==4.1.1
+typing-extensions==4.1.1
 virtualenv==20.13.2
+xgboost==1.5.2

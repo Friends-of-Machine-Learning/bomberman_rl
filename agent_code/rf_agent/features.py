@@ -676,7 +676,7 @@ class DangerZoneFeature(BaseFeature):
         self, agent: SimpleNamespace, game_state: dict
     ) -> FeatureSpace:
 
-        # BEGIN CALCULATGE DANGER ZONE
+        # BEGIN CALCULATE DANGER ZONE
         field = game_state["field"]
         next_explosion_map = game_state["explosion_map"].copy()
 
@@ -854,3 +854,33 @@ class SeeDistanceDirectionsFeature(BaseFeature):
         res.append(i)
 
         return res
+
+
+class CollisionZoneFeature(BaseFeature):
+    def __init__(
+        self, agent: SimpleNamespace, feature_size: int = 1, feature_names: dict = None
+    ):
+        super().__init__(agent, 25)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+
+        field = game_state["field"]
+
+        pos = game_state["self"][3]
+        sx, sy = pos
+        sx += 5
+        sy += 5
+
+        # all directions
+        res = np.ones((5, 5)) * 2
+        bigfield = np.ones((27, 27)) * 2
+        bigfield[5:22, 5:22] = field
+
+        res = bigfield[sx - 2 : sx + 3, sy - 2 : sy + 3]
+
+        res = np.array(res)
+        res[res == -1] = 2
+
+        return res.reshape(-1)

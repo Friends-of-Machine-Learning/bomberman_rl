@@ -30,17 +30,17 @@ def setup(self):
         # BFS/Movement Features
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        features.ClosestSafeSpaceDirection(self),
-        # Location Info Features
-        features.WallInDirectionFeature(self),
-        features.NextToCrateFeature(self),
-        features.CloseCrateCountFeature(self),
+        # features.ClosestSafeSpaceDirection(self),
+        # Location Info Featuresq
+        # features.WallInDirectionFeature(self),
+        features.CollisionZoneFeature(self),
+        # features.NextToCrateFeature(self),
+        # features.CloseCrateCountFeature(self),
         features.CanPlaceBombFeature(self),
         # Danger Awareness
         features.BombViewFeature(self),
-        features.RunawayDirectionFeature(self),
+        # features.RunawayDirectionFeature(self),
         features.DangerZoneFeature(self),
-        features.CanPlaceBombFeature(self),
         features.SeeDistanceDirectionsFeature(self),
     ]
 
@@ -55,9 +55,7 @@ def setup(self):
             with open("my-saved-model.pt", "rb") as file:
                 self.model = pickle.load(file)
         else:
-            self.model = [
-                RandomForestRegressor(n_estimators=50, n_jobs=4) for _ in ACTIONS
-            ]
+            self.model = [RandomForestRegressor(n_estimators=50) for _ in ACTIONS]
 
             for tree in self.model:
                 tree.fit(np.zeros((1, feature_size)), [0])

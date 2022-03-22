@@ -152,7 +152,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         for tree in self.model:
             tree.fit(np.zeros((1, feature_size)), [0])
         # try to converge the forest to the q function
-        for _ in range(50):
+        for _ in range(10):
             for action in ACTIONS:
                 q_function_train(
                     self,
@@ -178,7 +178,6 @@ game_rewards = {
     e.KILLED_SELF: -10,
     e.INVALID_ACTION: -1,
     str(ev.UselessBombEvent()): -3,
-    e.WAITED: -0.1,
 }
 
 
@@ -204,7 +203,7 @@ def q_function_train(
     transitions: List[Transition],
     end_transitions: List[Transition],
     action_index: int,
-    gamma: float = 0.8,
+    gamma: float = 0.9,
     alpha: float = 0.075,
 ) -> None:
     model = self.model
