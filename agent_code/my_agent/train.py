@@ -6,6 +6,7 @@ from typing import List
 import numpy as np
 
 import events as e
+from . import events as ev
 from .callbacks import ACTIONS
 from .callbacks import state_to_features
 from .utils import ACTION_TO_INDEX
@@ -37,6 +38,12 @@ def setup_training(self):
     """
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
+    self.custom_events = [
+        ev.UselessBombEvent(),
+        ev.PlacedGoodBombEvent(),
+        ev.AvoidDeathEvent(),
+        ev.NewFieldEvent(),
+    ]
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
     self.end_transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
 
@@ -70,6 +77,10 @@ def game_events_occurred(
 
     if old_game_state is None or new_game_state is None:
         return
+    for custom_event in self.custom_events:
+        custom_event.game_events_occurred(
+            old_game_state, self_action, new_game_state, events
+        )
     # state_to_features is defined in callbacks.py
     self.transitions.append(
         Transition(
@@ -121,6 +132,8 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(
         f'Encountered event(s) {", ".join(map(repr, events))} in final step'
     )
+    for custom_event in self.custom_events:
+        custom_event.game_events_occurred(last_game_state, last_action, None, events)
 
     self.end_transitions.append(
         Transition(
@@ -154,6 +167,22 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         pickle.dump((self.model, self.means), file)
 
 
+# cache in global space, no need to construct each time
+game_rewards = {
+    # GOOD
+    e.COIN_COLLECTED: 1,
+    e.CRATE_DESTROYED: 0.5,
+    e.BOMB_DROPPED: 0.2,
+    e.MOVED_UP: 0.1,
+    e.MOVED_DOWN: 0.1,
+    e.MOVED_LEFT: 0.1,
+    e.MOVED_RIGHT: 0.1,
+    # BAD
+    e.KILLED_SELF: -2,
+    e.INVALID_ACTION: -1,
+}
+
+
 def reward_from_events(self, events: List[str]) -> int:
     """
     *This is not a required function, but an idea to structure your code.*
@@ -161,19 +190,7 @@ def reward_from_events(self, events: List[str]) -> int:
     Here you can modify the rewards your agent get so as to en/discourage
     certain behavior.
     """
-    game_rewards = {
-        # GOOD
-        e.COIN_COLLECTED: 5,
-        e.CRATE_DESTROYED: 2,
-        e.MOVED_UP: 0.1,
-        e.MOVED_DOWN: 0.1,
-        e.MOVED_LEFT: 0.1,
-        e.MOVED_RIGHT: 0.1,
-        # BAD
-        e.KILLED_SELF: -6,
-        e.BOMB_DROPPED: 0.5
-        # e.INVALID_ACTION: -0.2,
-    }
+    global game_rewards
 
     reward_sum = 0
     for event in events:

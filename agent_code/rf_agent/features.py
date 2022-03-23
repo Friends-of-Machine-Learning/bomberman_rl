@@ -228,7 +228,7 @@ class BFSCrateFeature(BaseFeature):
 
         self_pos = game_state["self"][3]
         x, y = BFS(self_pos, field, 1)
-        u, d, l, r = self.wall_in_dir.state_to_feature(agent, game_state)
+        u, r, d, l = self.wall_in_dir.state_to_feature(agent, game_state)
 
         # If Wall in Move Direction return 0, as we already stand in front of the wall
         if OmegaMovementFeature.mov2_equal_mov4((x, y), (u, r, d, l)):
@@ -769,9 +769,7 @@ class OmegaMovementFeature(BaseFeature):
             ) or OmegaMovementFeature.mov2_equal_mov4((c_x, c_y), (du, dr, dd, dl)):
                 return 0, 0
             return c_x, c_y
-        if OmegaMovementFeature.mov2_equal_mov4(
-            (cr_x, cr_y), (u, r, d, l)
-        ) or OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), (du, dr, dd, dl)):
+        if OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), (du, dr, dd, dl)):
             return 0, 0
         return cr_x, cr_y
 
@@ -865,7 +863,6 @@ class CollisionZoneFeature(BaseFeature):
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
     ) -> FeatureSpace:
-
         field = game_state["field"]
 
         pos = game_state["self"][3]
