@@ -216,6 +216,12 @@ class BFSCoinFeature(BaseFeature):
             return np.zeros(self.feature_size)
 
         field[coin_pos[:, 0], coin_pos[:, 1]] = self.coin_val
+
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+
         self_pos = game_state["self"][3]
         return BFS(self_pos, field, self.coin_val)
 
@@ -232,6 +238,11 @@ class BFSCrateFeature(BaseFeature):
         self, agent: SimpleNamespace, game_state: dict
     ) -> FeatureSpace:
         field = game_state["field"].copy()
+
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
 
         self_pos = game_state["self"][3]
         return BFS(self_pos, field, 1)
@@ -429,6 +440,11 @@ class ClosestSafeSpaceDirection(BaseFeature):
             return 0, 0
 
         field = game_state["field"].copy()
+
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
 
         pos = game_state["self"][3]
         sx, sy = pos

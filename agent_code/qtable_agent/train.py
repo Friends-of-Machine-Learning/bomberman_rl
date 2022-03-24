@@ -128,13 +128,10 @@ def reward_from_events(self, events: List[str]) -> int:
         # GOOD
         e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 2,
-        e.MOVED_UP: 1,
-        e.MOVED_DOWN: 1,
-        e.MOVED_LEFT: 1,
-        e.MOVED_RIGHT: 1,
         e.BOMB_DROPPED: 0.5,
         # BAD
         e.KILLED_SELF: -10,
+        e.INVALID_ACTION: -0.1,
     }
     reward_sum = 0
     for event in events:
@@ -150,8 +147,8 @@ def update_q_table(
     new_state,
     reward,
     action_index: int,
-    lr: float = 0.7,
-    gamma: float = 0.175,
+    lr: float = 0.01,
+    gamma: float = 0.8,
 ) -> None:
     Q = self.model
 
@@ -168,7 +165,7 @@ def end_round_q_table(
     old_state,
     reward,
     action_index: int,
-    lr: float = 0.8,
+    lr: float = 0.01,
 ) -> None:
     Q = self.model
 

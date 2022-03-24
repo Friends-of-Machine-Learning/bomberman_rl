@@ -27,8 +27,12 @@ def setup(self):
     self.feature_print: bool = False
 
     self.features_used = [
-        features.OmegaMovementFeature(self),
-        features.ShouldDropBombFeature(self),
+        features.BFSCoinFeature(self),
+        features.BFSCrateFeature(self),
+        features.NextToCrateFeature(self),
+        features.CanPlaceBombFeature(self),
+        features.WallInDirectionFeature(self),
+        features.ClosestSafeSpaceDirection(self),
         # features.NextToCrateFeature(self)
     ]
 
