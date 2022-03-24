@@ -27,7 +27,7 @@ def setup(self):
     self.features_used = [
         features.OmegaMovementFeature(self),
         features.ShouldDropBombFeature(self),
-        features.NextToCrateFeature(self),
+        # features.NextToCrateFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):

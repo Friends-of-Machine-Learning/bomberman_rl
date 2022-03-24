@@ -18,8 +18,8 @@ Transition = namedtuple(
 )
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 800  # keep only ... last transitions
-END_TRANSITION_HISTORY_SIZE = 20  # keep only ... last transitions
+TRANSITION_HISTORY_SIZE = 8000  # keep only ... last transitions
+END_TRANSITION_HISTORY_SIZE = 200  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 # Events
@@ -170,16 +170,17 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 # cache in global space, no need to construct each time
 game_rewards = {
     # GOOD
-    e.COIN_COLLECTED: 1,
-    e.CRATE_DESTROYED: 0.5,
-    e.BOMB_DROPPED: 0.2,
-    e.MOVED_UP: 0.1,
-    e.MOVED_DOWN: 0.1,
-    e.MOVED_LEFT: 0.1,
-    e.MOVED_RIGHT: 0.1,
+    e.COIN_COLLECTED: 5,
+    e.CRATE_DESTROYED: 2,
+    e.MOVED_UP: 0.5,
+    e.MOVED_DOWN: 0.5,
+    e.MOVED_LEFT: 0.5,
+    e.MOVED_RIGHT: 0.5,
+    e.BOMB_DROPPED: 0.5,
     # BAD
-    e.KILLED_SELF: -2,
+    e.KILLED_SELF: -6,
     e.INVALID_ACTION: -1,
+    e.WAITED: -0.1,
 }
 
 
