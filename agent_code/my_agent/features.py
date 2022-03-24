@@ -203,6 +203,10 @@ class BFSCoinFeature(BaseFeature):
     ) -> FeatureSpace:
         field = game_state["field"].copy()
         coin_pos = np.array(game_state["coins"])
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
 
         if len(coin_pos) == 0:
             return np.zeros(self.feature_size)
@@ -219,14 +223,25 @@ class BFSCrateFeature(BaseFeature):
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 2)
+        self.wall_in_dir = WallInDirectionFeature(agent)
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
     ) -> FeatureSpace:
         field = game_state["field"].copy()
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
 
         self_pos = game_state["self"][3]
-        return BFS(self_pos, field, 1)
+        x, y = BFS(self_pos, field, 1)
+        u, r, d, l = self.wall_in_dir.state_to_feature(agent, game_state)
+
+        # If Wall in Move Direction return 0, as we already stand in front of the wall
+        if OmegaMovementFeature.mov2_equal_mov4((x, y), (u, r, d, l)):
+            return 0, 0
+        return x, y
 
 
 class BombCrateFeature(BaseFeature):
@@ -272,6 +287,54 @@ class BombCrateFeature(BaseFeature):
                 return self.can_place
 
         return np.array([0])
+
+
+class CloseCrateCountFeature(BaseFeature):
+    """
+    Return the amount of bombable crates for Up Right Down Left
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 4)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        field = game_state["field"]
+        pos = game_state["self"][3]
+        x, y = pos
+
+        ret = [0, 0, 0, 0]
+
+        # up
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y - i] == -1:
+                break
+            elif field[x, y - i] == 1:
+                ret[0] += 1
+
+        # right
+        for i in range(s.BOMB_POWER + 1):
+            if field[x + i, y] == -1:
+                break
+            elif field[x + i, y] == 1:
+                ret[1] += 1
+
+        # down
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y + i] == -1:
+                break
+            elif field[x, y + i] == 1:
+                ret[2] += 1
+
+        # left
+        for i in range(s.BOMB_POWER + 1):
+            if field[x - i, y] == -1:
+                break
+            elif field[x - i, y] == 1:
+                ret[3] += 1
+
+        return ret
 
 
 class BombDistanceDirectionsFeature(BaseFeature):
@@ -421,6 +484,10 @@ class ClosestSafeSpaceDirection(BaseFeature):
             return 0, 0
 
         field = game_state["field"].copy()
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
 
         pos = game_state["self"][3]
         sx, sy = pos
@@ -470,7 +537,8 @@ class RunawayDirectionFeature(BaseFeature):
         self.bomb_val = -3  # represents the bomb in the field
 
     def feature_to_readable_name(self, features: FeatureSpace) -> str:
-        return f"{self.__class__.__name__}: "
+        u, r, d, l = features
+        return f"{self.__class__.__name__}: ({u=}, {r=}, {d=}, {l=})"
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -510,7 +578,7 @@ class RunawayDirectionFeature(BaseFeature):
         return res
 
 
-class NextToCrate(BaseFeature):
+class NextToCrateFeature(BaseFeature):
     """
     Check if a crate is next to the agent, if so return 1 else 0
     """
@@ -541,7 +609,7 @@ class NextToCrate(BaseFeature):
         return np.array([0])
 
 
-class InstantDeathDirections(BaseFeature):
+class InstantDeathDirectionsFeatures(BaseFeature):
     """
     Check for every direction if a step would be lethal
     """
@@ -555,7 +623,6 @@ class InstantDeathDirections(BaseFeature):
 
         field = game_state["field"]
         next_explosion_map = game_state["explosion_map"].copy() + 1
-        next_explosion_map[next_explosion_map < 0] = 0
 
         for (x, y), t in game_state["bombs"]:
 
@@ -611,6 +678,68 @@ class InstantDeathDirections(BaseFeature):
         return res
 
 
+class DangerZoneFeature(BaseFeature):
+    def __init__(
+        self, agent: SimpleNamespace, feature_size: int = 1, feature_names: dict = None
+    ):
+        super().__init__(agent, 9)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+
+        # BEGIN CALCULATE DANGER ZONE
+        field = game_state["field"]
+        next_explosion_map = game_state["explosion_map"].copy()
+
+        for (x, y), t in game_state["bombs"]:
+            # up
+            for i in range(s.BOMB_POWER + 1):
+                if field[x, y + i] != -1:
+                    next_explosion_map[x, y + i] = t + 2
+                else:
+                    break
+            # down
+            for i in range(s.BOMB_POWER + 1):
+                if field[x, y - i] != -1:
+                    next_explosion_map[x, y - i] = t + 2
+                else:
+                    break
+            # left
+            for i in range(s.BOMB_POWER + 1):
+                if field[x - i, y] != -1:
+                    next_explosion_map[x - i, y] = t + 2
+                else:
+                    break
+            # right
+            for i in range(s.BOMB_POWER + 1):
+                if field[x + i, y] != -1:
+                    next_explosion_map[x + i, y] = t + 2
+                else:
+                    break
+        # END OF DANGER ZONE
+
+        pos = game_state["self"][3]
+        sx, sy = pos
+
+        res = []
+        # all directions
+        for i, j in [
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+            (-1, 0),
+            (0, 0),
+            (1, 0),
+            (-1, 1),
+            (0, 1),
+            (1, 1),
+        ]:
+            res.append(next_explosion_map[sx + i, sy + j])
+
+        return res
+
+
 class OmegaMovementFeature(BaseFeature):
     """
     Manages multiple movement related features.
@@ -629,7 +758,7 @@ class OmegaMovementFeature(BaseFeature):
         self.coin_feature = BFSCoinFeature(agent)
         self.crate_feature = BFSCrateFeature(agent)
         self.runaway_feature = ClosestSafeSpaceDirection(agent)
-        self.instant_death_direction_feature = InstantDeathDirections(agent)
+        self.instant_death_direction_feature = InstantDeathDirectionsFeatures(agent)
         self.wall_in_direction_feature = WallInDirectionFeature(agent)
 
     def state_to_feature(
@@ -652,9 +781,7 @@ class OmegaMovementFeature(BaseFeature):
             ) or OmegaMovementFeature.mov2_equal_mov4((c_x, c_y), (du, dr, dd, dl)):
                 return 0, 0
             return c_x, c_y
-        if OmegaMovementFeature.mov2_equal_mov4(
-            (cr_x, cr_y), (u, r, d, l)
-        ) or OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), (du, dr, dd, dl)):
+        if OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), (du, dr, dd, dl)):
             return 0, 0
         return cr_x, cr_y
 
@@ -688,3 +815,81 @@ class ShouldDropBombFeature(BaseFeature):
             return [0]
 
         return self.close_to_crate.state_to_feature(agent, game_state)
+
+
+class SeeDistanceDirectionsFeature(BaseFeature):
+    """
+    Returns the distance the agent can see/walk in each direction.
+    Up, Right, Down, Left
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 4)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+
+        sx, sy = game_state["self"][3]
+        field = game_state["field"]
+
+        res = []
+
+        # up
+        i = 0
+        while field[sx, sy - i] == 0:
+            i += 1
+
+        res.append(i)
+
+        # right
+        i = 0
+        while field[sx + i, sy] == 0:
+            i += 1
+
+        res.append(i)
+
+        # down
+        i = 0
+        while field[sx, sy + i] == 0:
+            i += 1
+
+        res.append(i)
+
+        # left
+        i = 0
+        while field[sx - i, sy] == 0:
+            i += 1
+
+        res.append(i)
+
+        return res
+
+
+class CollisionZoneFeature(BaseFeature):
+    def __init__(
+        self, agent: SimpleNamespace, feature_size: int = 1, feature_names: dict = None
+    ):
+        super().__init__(agent, 25)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        field = game_state["field"]
+
+        pos = game_state["self"][3]
+        sx, sy = pos
+        sx += 5
+        sy += 5
+
+        # all directions
+        res = np.ones((5, 5)) * 2
+        bigfield = np.ones((27, 27)) * 2
+        bigfield[5:22, 5:22] = field
+
+        res = bigfield[sx - 2 : sx + 3, sy - 2 : sy + 3]
+
+        res = np.array(res)
+        res[res == -1] = 2
+
+        return res.reshape(-1)

@@ -39,7 +39,12 @@ def setup_training(self):
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
     # self.begin_transition = []
-    self.custom_events = [ev.UselessBombEvent()]
+    self.custom_events = [
+        ev.UselessBombEvent(),
+        ev.PlacedGoodBombEvent(),
+        ev.AvoidDeathEvent(),
+        ev.NewFieldEvent(),
+    ]
     self.transitions_for_action = {action: [] for action in ACTIONS}
     self.end_transitions_for_action = {action: [] for action in ACTIONS}
 

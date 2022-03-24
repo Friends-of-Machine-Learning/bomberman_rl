@@ -1,9 +1,12 @@
 from abc import ABC
 from abc import abstractmethod
-from types import SimpleNamespace
 from typing import List
 
 import numpy as np
+
+import events as e
+from . import features
+from .utils import ACTION_TO_INDEX
 
 
 class BaseEvent(ABC):
@@ -11,15 +14,15 @@ class BaseEvent(ABC):
     Base Class for all Custom Events.
     """
 
-    E: str = "BaseEvent"  # The unique Event Name
-
-    def __init__(self, event_name="BaseEvent"):
-        BaseEvent.E = event_name
+    def __init__(self):
         super().__init__()
+
+    def __str__(self):
+        return self.__class__.__name__
 
     @abstractmethod
     def game_events_occurred(
-        self: SimpleNamespace,
+        self,
         old_game_state: dict,
         self_action: str,
         new_game_state: dict,
@@ -31,8 +34,6 @@ class BaseEvent(ABC):
 
         Parameters
         ----------
-        self : SimpleNamespace
-            The SimpleNamespace 'self' of the running agent.
         old_game_state : dict
             The last game_state.
         self_action : str
@@ -47,25 +48,102 @@ class BaseEvent(ABC):
 
 class UselessBombEvent(BaseEvent):
     """
-    Append the UselessBombEvent to the events list when the bomb destroyed a crate or killed an enemy.
+    Event for when the agent placed a bomb although the bomb can't destroy anything in that place.
     """
 
-    def __init__(self, event_name="UselessBombEvent"):
-        super().__init__(event_name)
+    def __init__(self):
+        super().__init__()
 
     def game_events_occurred(
-        self: SimpleNamespace,
+        self,
         old_game_state: dict,
         self_action: str,
         new_game_state: dict,
         events: List[str],
     ) -> None:
-        old_bomb = old_game_state["bombs"]
-        new_bomb = new_game_state["bombs"]
+        bomb_feature = features.BombCrateFeature(None)
 
-        old_field = old_game_state["field"]
-        new_field = new_game_state["field"]
+        if (
+            not bool(bomb_feature.state_to_feature(None, old_game_state))
+            and self_action == "BOMB"
+        ):
+            events.append(str(self))
 
-        # Bomb exploded, but field stayed the same
-        if len(old_bomb) > len(new_bomb) and np.all(old_field == new_field):
-            events.append(self.E)
+
+class AvoidDeathEvent(BaseEvent):
+    def __init__(self):
+        super().__init__()
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        death_feature = features.InstantDeathDirectionsFeatures(None)
+
+        deadly_moves = death_feature.state_to_feature(None, old_game_state)
+        u, d, l, r, s = deadly_moves
+
+        action_to_move = {
+            "UP": u,
+            "DOWN": d,
+            "LEFT": l,
+            "RIGHT": r,
+            "WAIT": s,
+            "BOMB": s,
+        }
+        # If the agent made a move that is not 1 in InstantDeathDirectionsFeatures, append the event.
+        if not bool(action_to_move[self_action]) and 1 in deadly_moves:
+            events.append(str(self))
+
+
+class PlacedGoodBombEvent(BaseEvent):
+    """
+    Add event if the agent placed a bomb that might hit a crate or enemy.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        bomb_feature = features.BombCrateFeature(None)
+
+        if (
+            bool(bomb_feature.state_to_feature(None, old_game_state))
+            and self_action == "BOMB"
+        ):
+            events.append(str(self))
+
+
+class NewFieldEvent(BaseEvent):
+    """
+    Add event if agent moved to a new field.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.visited = []
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        if not new_game_state:
+            return
+        new_pos = new_game_state["self"][3]
+        if new_pos in self.visited:
+            return
+
+        self.visited.append(new_pos)
+        events.append(str(self))
