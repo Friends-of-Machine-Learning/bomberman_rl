@@ -228,7 +228,7 @@ class BFSCrateFeature(BaseFeature):
 
         self_pos = game_state["self"][3]
         x, y = BFS(self_pos, field, 1)
-        u, d, l, r = self.wall_in_dir.state_to_feature(agent, game_state)
+        u, r, d, l = self.wall_in_dir.state_to_feature(agent, game_state)  # u r d l
 
         # If Wall in Move Direction return 0, as we already stand in front of the wall
         if OmegaMovementFeature.mov2_equal_mov4((x, y), (u, r, d, l)):
