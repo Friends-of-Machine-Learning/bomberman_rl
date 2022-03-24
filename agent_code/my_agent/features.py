@@ -893,3 +893,28 @@ class CollisionZoneFeature(BaseFeature):
         res[res == -1] = 2
 
         return res.reshape(-1)
+
+
+class BFSAgentsFeature(BaseFeature):
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 2)
+        self.agent_val = 5
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        field = game_state["field"].copy()
+        other_agents = game_state["others"]
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+
+        if len(other_agents) == 0:
+            return np.zeros(self.feature_size)
+
+        for epos in [other_agent[-1] for other_agent in other_agents]:
+            field[epos[0], epos[1]] = self.agent_val
+
+        self_pos = game_state["self"][3]
+        return BFS(self_pos, field, self.agent_val, 1)
