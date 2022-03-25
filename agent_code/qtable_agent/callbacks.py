@@ -29,11 +29,11 @@ def setup(self):
     self.features_used = [
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        features.NextToCrateFeature(self),
+        features.BombCrateFeature(self),
         features.CanPlaceBombFeature(self),
-        features.WallInDirectionFeature(self),
         features.ClosestSafeSpaceDirection(self),
-        # features.NextToCrateFeature(self)
+        features.InstantDeathDirectionsFeatures(self),
+        features.BombIsSuicide(self),
     ]
 
     self.keep_model: bool = False

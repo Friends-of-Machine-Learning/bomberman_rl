@@ -128,7 +128,7 @@ def reward_from_events(self, events: List[str]) -> int:
         # GOOD
         e.COIN_COLLECTED: 5,
         e.CRATE_DESTROYED: 2,
-        e.BOMB_DROPPED: 0.5,
+        # e.BOMB_DROPPED: 0.5,
         # BAD
         e.KILLED_SELF: -10,
         e.INVALID_ACTION: -0.1,
@@ -147,8 +147,8 @@ def update_q_table(
     new_state,
     reward,
     action_index: int,
-    lr: float = 0.01,
-    gamma: float = 0.8,
+    lr: float = 0.001,
+    gamma: float = 0.9,
 ) -> None:
     Q = self.model
 
@@ -165,7 +165,7 @@ def end_round_q_table(
     old_state,
     reward,
     action_index: int,
-    lr: float = 0.01,
+    lr: float = 0.001,
 ) -> None:
     Q = self.model
 
