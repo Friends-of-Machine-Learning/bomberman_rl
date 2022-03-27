@@ -147,3 +147,37 @@ class NewFieldEvent(BaseEvent):
 
         self.visited.append(new_pos)
         events.append(str(self))
+
+
+class DestroyedAnyCrate(BaseEvent):
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        if e.CRATE_DESTROYED in events:
+            events.append(str(self))
+
+
+class PogBomb(BaseEvent):
+    def __init__(self):
+        super().__init__()
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        bomb_feature = features.BombCrateFeature(None)
+        bomb_suicide = features.BombIsSuicideFeature(None)
+
+        if (
+            self_action == "BOMB"
+            and bool(bomb_feature.state_to_feature(None, old_game_state))
+            and not bool(bomb_suicide.state_to_feature(None, old_game_state))
+        ):
+            events.append(str(self))
