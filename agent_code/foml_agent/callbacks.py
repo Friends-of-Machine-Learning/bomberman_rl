@@ -29,11 +29,9 @@ def setup(self):
         features.BFSCrateFeature(self),
         features.ClosestSafeSpaceDirection(self),
         features.BFSAgentsFeature(self),
+        features.ClosestEnemyDistance(self),
         features.InstantDeathDirectionsFeatures(self),
-        features.CanPlaceBombFeature(self),
-        features.BombCrateFeature(self),
-        features.BombCloseToEnemyFeature(self),
-        features.BombIsSuicideFeature(self),
+        features.ShouldDropBombFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):

@@ -166,7 +166,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             ACTION_TO_INDEX[action],
         )
 
-    if last_game_state["round"] % 200 == 0:
+    if last_game_state["round"] % 20 == 0:
         # Store the model
         with open("my-saved-model.pt", "wb") as file:
             pickle.dump((self.model, self.means), file)
@@ -175,18 +175,16 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 # cache in global space, no need to construct each time
 game_rewards = {
     # GOOD
-    e.COIN_COLLECTED: 10,
-    str(ev.DestroyedAnyCrate()): 5,
-    str(ev.PogBomb()): 5,
-    e.KILLED_OPPONENT: 35,
-    e.MOVED_UP: 5,
-    e.MOVED_DOWN: 5,
-    e.MOVED_LEFT: 5,
-    e.MOVED_RIGHT: 5,
-    e.BOMB_DROPPED: 2,
+    e.KILLED_OPPONENT: 6,
+    e.COIN_COLLECTED: 5,
+    str(ev.DestroyedAnyCrate()): 2,
+    e.MOVED_UP: 0.5,
+    e.MOVED_DOWN: 0.5,
+    e.MOVED_LEFT: 0.5,
+    e.MOVED_RIGHT: 0.5,
+    e.BOMB_DROPPED: 0.5,
     # BAD
-    e.GOT_KILLED: -5,
-    e.KILLED_SELF: -3,
+    e.KILLED_SELF: -2,
     e.INVALID_ACTION: -1,
 }
 
