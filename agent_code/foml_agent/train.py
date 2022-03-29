@@ -47,6 +47,7 @@ def setup_training(self):
         ev.NewFieldEvent(),
         ev.DestroyedAnyCrate(),
         ev.PogBomb(),
+        ev.FollowOmegaEvent(),
     ]
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
     self.end_transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
@@ -175,17 +176,17 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 # cache in global space, no need to construct each time
 game_rewards = {
     # GOOD
-    e.KILLED_OPPONENT: 6,
     e.COIN_COLLECTED: 5,
-    str(ev.DestroyedAnyCrate()): 2,
+    e.CRATE_DESTROYED: 2,
     e.MOVED_UP: 0.5,
     e.MOVED_DOWN: 0.5,
     e.MOVED_LEFT: 0.5,
     e.MOVED_RIGHT: 0.5,
     e.BOMB_DROPPED: 0.5,
     # BAD
-    e.KILLED_SELF: -2,
+    e.KILLED_SELF: -6,
     e.INVALID_ACTION: -1,
+    e.WAITED: -0.1,
 }
 
 

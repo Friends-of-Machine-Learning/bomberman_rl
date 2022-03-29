@@ -7,6 +7,7 @@ import numpy as np
 import events as e
 from . import features
 from .utils import ACTION_TO_INDEX
+from .utils import DIRECTION_MAPSTR
 
 
 class BaseEvent(ABC):
@@ -180,4 +181,31 @@ class PogBomb(BaseEvent):
             and bool(bomb_feature.state_to_feature(None, old_game_state)[0])
             and not bool(bomb_suicide.state_to_feature(None, old_game_state)[0])
         ):
+            events.append(str(self))
+
+
+class FollowOmegaEvent(BaseEvent):
+    """
+    Add event if agent moved towards the closest reachable coin.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        if not new_game_state:
+            return
+
+        wished_direction = np.array(
+            features.OmegaMovementFeature(None).state_to_feature(None, old_game_state)
+        )
+        moved = DIRECTION_MAPSTR.get(self_action, (0, 0))
+
+        if wished_direction[0] == moved[0] and wished_direction[1] == moved[1]:
             events.append(str(self))
