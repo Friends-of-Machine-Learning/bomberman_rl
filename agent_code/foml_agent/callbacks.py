@@ -25,9 +25,13 @@ def setup(self):
     """
     self.debug: bool = False
     self.features_used = [
-        features.OmegaMovementFeature(self),
+        features.BFSCoinFeature(self),
+        features.BFSCrateFeature(self),
+        features.ClosestSafeSpaceDirection(self),
+        features.BFSAgentsFeature(self),
+        features.ClosestEnemyDistance(self),
+        features.InstantDeathDirectionsFeatures(self),
         features.ShouldDropBombFeature(self),
-        # features.NextToCrateFeature(self),
     ]
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
@@ -94,12 +98,17 @@ def state_to_features(self, game_state: dict, debug=False) -> np.array:
 
     feature: features.BaseFeature
     feature_debug_text: list = []
-    for feature in self.features_used:
-        x = feature.state_to_feature(self, game_state)
-        feature_debug_text.append(feature.feature_to_readable_name(x))
-        x_feature.append(x)
 
     if self.debug and debug:
+        for feature in self.features_used:
+            x = feature.state_to_feature(self, game_state)
+            feature_debug_text.append(feature.feature_to_readable_name(x))
+            x_feature.append(x)
         print(", ".join(feature_debug_text))
+
+    else:
+        for feature in self.features_used:
+            x = feature.state_to_feature(self, game_state)
+            x_feature.append(x)
 
     return np.concatenate(x_feature)

@@ -18,8 +18,10 @@ Transition = namedtuple(
 )
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 8000  # keep only ... last transitions
-END_TRANSITION_HISTORY_SIZE = 200  # keep only ... last transitions
+TRANSITION_HISTORY_SIZE = 400 * 3  # keep only ... last transitions
+END_TRANSITION_HISTORY_SIZE = (
+    TRANSITION_HISTORY_SIZE // 400
+)  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 # Events
@@ -43,6 +45,8 @@ def setup_training(self):
         ev.PlacedGoodBombEvent(),
         ev.AvoidDeathEvent(),
         ev.NewFieldEvent(),
+        ev.DestroyedAnyCrate(),
+        ev.PogBomb(),
     ]
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
     self.end_transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)
@@ -162,25 +166,26 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             ACTION_TO_INDEX[action],
         )
 
-    # Store the model
-    with open("my-saved-model.pt", "wb") as file:
-        pickle.dump((self.model, self.means), file)
+    if last_game_state["round"] % 20 == 0:
+        # Store the model
+        with open("my-saved-model.pt", "wb") as file:
+            pickle.dump((self.model, self.means), file)
 
 
 # cache in global space, no need to construct each time
 game_rewards = {
     # GOOD
+    e.KILLED_OPPONENT: 6,
     e.COIN_COLLECTED: 5,
-    e.CRATE_DESTROYED: 2,
+    str(ev.DestroyedAnyCrate()): 2,
     e.MOVED_UP: 0.5,
     e.MOVED_DOWN: 0.5,
     e.MOVED_LEFT: 0.5,
     e.MOVED_RIGHT: 0.5,
     e.BOMB_DROPPED: 0.5,
     # BAD
-    e.KILLED_SELF: -6,
+    e.KILLED_SELF: -2,
     e.INVALID_ACTION: -1,
-    e.WAITED: -0.1,
 }
 
 
@@ -206,8 +211,8 @@ def q_function_train(
     transitions: List[Transition],
     end_transitions: List[Transition],
     action_index: int,
-    gamma: float = 0.8,
-    alpha: float = 0.075,
+    gamma: float = 0.9,
+    alpha: float = 0.1,
 ) -> None:
     model = self.model
     if not transitions:
@@ -219,7 +224,7 @@ def q_function_train(
     states_end = np.array([x.feature for x in end_transitions])
     q_vals_end = np.array([x.reward for x in end_transitions])
 
-    q_vals = rewards + gamma * q_func(model, states_new)
+    q_vals = rewards + gamma * q_func(model, states_new, self.means)
 
     if len(states_end.shape) > 1:
         q_vals = np.concatenate((q_vals, q_vals_end))
@@ -242,5 +247,5 @@ def q_function_train(
     self.model = model
 
 
-def q_func(model: np.ndarray, state) -> np.ndarray:
-    return np.max(state @ model.T, axis=1)
+def q_func(model: np.ndarray, state, means) -> np.ndarray:
+    return np.max(state @ model.T + means, axis=1)

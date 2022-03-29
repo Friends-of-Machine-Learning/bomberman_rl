@@ -64,7 +64,7 @@ class UselessBombEvent(BaseEvent):
         bomb_feature = features.BombCrateFeature(None)
 
         if (
-            not bool(bomb_feature.state_to_feature(None, old_game_state))
+            not bool(bomb_feature.state_to_feature(None, old_game_state)[0])
             and self_action == "BOMB"
         ):
             events.append(str(self))
@@ -117,7 +117,7 @@ class PlacedGoodBombEvent(BaseEvent):
         bomb_feature = features.BombCrateFeature(None)
 
         if (
-            bool(bomb_feature.state_to_feature(None, old_game_state))
+            bool(bomb_feature.state_to_feature(None, old_game_state)[0])
             and self_action == "BOMB"
         ):
             events.append(str(self))
@@ -147,3 +147,37 @@ class NewFieldEvent(BaseEvent):
 
         self.visited.append(new_pos)
         events.append(str(self))
+
+
+class DestroyedAnyCrate(BaseEvent):
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        if e.CRATE_DESTROYED in events:
+            events.append(str(self))
+
+
+class PogBomb(BaseEvent):
+    def __init__(self):
+        super().__init__()
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        bomb_feature = features.BombCrateFeature(None)
+        bomb_suicide = features.BombIsSuicideFeature(None)
+
+        if (
+            self_action == "BOMB"
+            and bool(bomb_feature.state_to_feature(None, old_game_state)[0])
+            and not bool(bomb_suicide.state_to_feature(None, old_game_state)[0])
+        ):
+            events.append(str(self))
