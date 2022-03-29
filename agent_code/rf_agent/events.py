@@ -64,7 +64,7 @@ class UselessBombEvent(BaseEvent):
         bomb_feature = features.BombCrateFeature(None)
 
         if (
-            not bool(bomb_feature.state_to_feature(None, old_game_state))
+            not bool(bomb_feature.state_to_feature(None, old_game_state)[0])
             and self_action == "BOMB"
         ):
             events.append(str(self))
@@ -117,7 +117,7 @@ class PlacedGoodBombEvent(BaseEvent):
         bomb_feature = features.BombCrateFeature(None)
 
         if (
-            bool(bomb_feature.state_to_feature(None, old_game_state))
+            bool(bomb_feature.state_to_feature(None, old_game_state)[0])
             and self_action == "BOMB"
         ):
             events.append(str(self))
@@ -147,3 +147,96 @@ class NewFieldEvent(BaseEvent):
 
         self.visited.append(new_pos)
         events.append(str(self))
+
+
+class AwayFromSuicideEvent(BaseEvent):
+    """
+    Add event if agent moved away from a safe suicide position.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        if not new_game_state:
+            return
+
+        new_pos = new_game_state["self"][3]
+
+        old = features.BombIsSuicideFeature(None).state_to_feature(
+            None, old_game_state
+        )[0]
+        new = features.BombIsSuicideFeature(None).state_to_feature(
+            None, new_game_state
+        )[0]
+
+        if old == 1 and new == 0:
+            events.append(str(self))
+
+
+class MoveTowardsCrateEvent(BaseEvent):
+    """
+    Add event if agent moved towards the closest reachable crate.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        if not new_game_state:
+            return
+
+        new_pos = new_game_state["self"][3]
+
+        wished_direction = np.array(
+            features.BFSCrateFeature(None).state_to_feature(None, old_game_state)
+        )
+        moved = np.array(new_game_state["self"][3]) - np.array(
+            old_game_state["self"][3]
+        )
+
+        if np.all(wished_direction == moved):
+            events.append(str(self))
+
+
+class MoveTowardsCoinEvent(BaseEvent):
+    """
+    Add event if agent moved towards the closest reachable coin.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def game_events_occurred(
+        self,
+        old_game_state: dict,
+        self_action: str,
+        new_game_state: dict,
+        events: List[str],
+    ) -> None:
+        if not new_game_state:
+            return
+
+        new_pos = new_game_state["self"][3]
+
+        wished_direction = np.array(
+            features.BFSCoinFeature(None).state_to_feature(None, old_game_state)
+        )
+        moved = np.array(new_game_state["self"][3]) - np.array(
+            old_game_state["self"][3]
+        )
+
+        if np.all(wished_direction == moved):
+            events.append(str(self))

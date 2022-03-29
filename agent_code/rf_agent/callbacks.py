@@ -30,18 +30,16 @@ def setup(self):
         # BFS/Movement Features
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        # features.ClosestSafeSpaceDirection(self),
-        # Location Info Featuresq
-        # features.WallInDirectionFeature(self),
+        features.ClosestSafeSpaceDirection(self),
+        features.InstantDeathDirectionsFeatures(self),
         features.CollisionZoneFeature(self),
-        # features.NextToCrateFeature(self),
-        # features.CloseCrateCountFeature(self),
+        features.NextToCrateFeature(self),
         features.CanPlaceBombFeature(self),
         # Danger Awareness
         features.BombViewFeature(self),
-        # features.RunawayDirectionFeature(self),
         features.DangerZoneFeature(self),
         features.SeeDistanceDirectionsFeature(self),
+        features.BFSAgentsFeature(self),
     ]
 
     self.keep_model: bool = False

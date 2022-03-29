@@ -43,7 +43,9 @@ def setup_training(self):
         ev.UselessBombEvent(),
         ev.PlacedGoodBombEvent(),
         ev.AvoidDeathEvent(),
-        ev.NewFieldEvent(),
+        ev.AwayFromSuicideEvent(),
+        ev.MoveTowardsCrateEvent(),
+        ev.MoveTowardsCoinEvent(),
     ]
     self.transitions_for_action = {action: [] for action in ACTIONS}
     self.end_transitions_for_action = {action: [] for action in ACTIONS}
@@ -170,19 +172,37 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         with open("my-saved-model.pt", "wb") as file:
             pickle.dump(self.model, file)
 
+    if last_game_state["round"] % 20 == 0:
+        for action in ACTIONS:
+            if len(self.transitions_for_action[action]) > 10:
+                start_throwaway = int(np.sqrt(len(self.transitions_for_action[action])))
+                self.transitions_for_action[action] = self.transitions_for_action[
+                    action
+                ][start_throwaway:]
+
+            if len(self.end_transitions_for_action[action]) > 10:
+                start_throwaway = int(
+                    np.sqrt(len(self.end_transitions_for_action[action]))
+                )
+                self.end_transitions_for_action[
+                    action
+                ] = self.end_transitions_for_action[action][start_throwaway:]
+
 
 # cache in global space, no need to construct each time
 game_rewards = {
     # GOOD
     e.COIN_COLLECTED: 5,
     e.CRATE_DESTROYED: 1,
+    e.KILLED_OPPONENT: 10,
     str(ev.AvoidDeathEvent()): 0.5,
     str(ev.PlacedGoodBombEvent()): 0.5,
-    str(ev.NewFieldEvent()): 0.5,
+    str(ev.MoveTowardsCrateEvent()): 0.5,
+    str(ev.MoveTowardsCoinEvent()): 0.5,
     # BAD
     e.KILLED_SELF: -10,
     e.INVALID_ACTION: -1,
-    str(ev.UselessBombEvent()): -3,
+    str(ev.AwayFromSuicideEvent()): 0.2,
 }
 
 
