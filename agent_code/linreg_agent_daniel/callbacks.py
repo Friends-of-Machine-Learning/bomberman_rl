@@ -3,7 +3,6 @@ import pickle
 import random
 
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
 
 from . import features
 
@@ -24,46 +23,35 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    self.feature_print: bool = False
-
+    self.debug: bool = False
     self.features_used = [
-        # BFS/Movement Features
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
+        features.BombCrateFeature(self),
+        features.WallInDirectionFeature(self),
         features.ClosestSafeSpaceDirection(self),
-        features.InstantDeathDirectionsFeatures(self),
-        features.CollisionZoneFeature(self),
-        features.NextToCrateFeature(self),
-        features.CanPlaceBombFeature(self),
-        # Danger Awareness
-        features.BombViewFeature(self),
-        features.DangerZoneFeature(self),
-        features.SeeDistanceDirectionsFeature(self),
         features.BFSAgentsFeature(self),
+        features.ClosestEnemyDistance(self),
+        features.InstantDeathDirectionsFeatures(self),
+        features.ShouldDropBombFeature(self),
+        features.NextToOpponentFeature(self),
+        features.NextToCrateFeature(self),
+        features.CloseCrateCountFeature(self),
+        features.CanPlaceBombFeature(self),
+        features.BombIsSuicideFeature(self),
     ]
-
-    self.keep_model: bool = False
 
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
 
         feature_size = sum(f.get_feature_size() for f in self.features_used)
-
-        if self.keep_model:
-            with open("my-saved-model.pt", "rb") as file:
-                self.model = pickle.load(file)
-        else:
-            self.model = [
-                RandomForestRegressor(n_estimators=10, max_depth=30) for _ in ACTIONS
-            ]
-
-            for tree in self.model:
-                tree.fit(np.zeros((1, feature_size)), [0])
-
+        self.model = np.zeros((6, feature_size))
+        self.means = np.zeros(6)
+        self.n_mean_instances = np.zeros(6)
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
-            self.model = pickle.load(file)
+            self.model, self.means = pickle.load(file)
     self.last_action = np.zeros(6)
 
 
@@ -77,24 +65,25 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
 
+    # todo Exploration vs exploitation
     random_prob = 0.1
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
         # 80%: walk in any direction. 10% wait. 10% bomb.
         return np.random.choice(ACTIONS, p=[0.2, 0.2, 0.2, 0.2, 0.1, 0.1])
 
+    features: np.ndarray = state_to_features(self, game_state, True)
     self.logger.debug("Querying model for action.")
 
-    features: np.ndarray = state_to_features(self, game_state, True)
-    f = [features]
-
-    action_index = np.argmax([tree.predict(f) for tree in self.model])
+    self.last_action = np.zeros(6)
+    action_index = np.argmax(features @ self.model.T + self.means)
     next_action = ACTIONS[action_index]
+    self.last_action[action_index] = 1
 
     return next_action
 
 
-def state_to_features(self, game_state: dict, temp: bool = False) -> np.array:
+def state_to_features(self, game_state: dict, debug=False) -> np.array:
     """
     *This is not a required function, but an idea to structure your code.*
 
@@ -115,13 +104,18 @@ def state_to_features(self, game_state: dict, temp: bool = False) -> np.array:
     x_feature = []
 
     feature: features.BaseFeature
-    feature_debug_text: list = []
-    for feature in self.features_used:
-        x = feature.state_to_feature(self, game_state)
-        feature_debug_text.append(feature.feature_to_readable_name(x))
-        x_feature.append(x)
 
-    if self.feature_print and temp:
+    feature_debug_text: list = []
+    if self.debug and debug:
+        for feature in self.features_used:
+            x = feature.state_to_feature(self, game_state)
+            feature_debug_text.append(feature.feature_to_readable_name(x))
+            x_feature.append(x)
         print(", ".join(feature_debug_text))
+
+    else:
+        for feature in self.features_used:
+            x = feature.state_to_feature(self, game_state)
+            x_feature.append(x)
 
     return np.concatenate(x_feature)

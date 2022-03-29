@@ -622,40 +622,6 @@ class NextToCrateFeature(BaseFeature):
         return np.array([0])
 
 
-class NextToOpponentFeature(BaseFeature):
-    """
-    Check if a opponent is next to the agent, if so return 1 else 0
-    """
-
-    _feature_names = {(1,): "True", (0,): "False"}
-
-    def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 1, self._feature_names)
-
-    def state_to_feature(
-        self, agent: SimpleNamespace, game_state: dict
-    ) -> FeatureSpace:
-        field = game_state["field"]
-        pos = game_state["self"][3]
-        sy, sx = pos
-
-        place_bomb = np.array([1])
-
-        if len(game_state["others"]) == 0:
-            return [0]
-
-        positions = np.array([agent[3] for agent in game_state["others"]])
-
-        dist = np.min(np.linalg.norm(positions - pos, axis=1))
-
-        if dist == 1:
-            return place_bomb
-
-        return [0]
-
-        return np.array([0])
-
-
 class InstantDeathDirectionsFeatures(BaseFeature):
     """
     Check for every direction if a step would be lethal
@@ -1108,25 +1074,3 @@ class BFSAgentsFeature(BaseFeature):
 
         self_pos = game_state["self"][3]
         return BFS(self_pos, field, self.agent_val, 1)
-
-
-class ClosestEnemyDistance(BaseFeature):
-    def __init__(
-        self, agent: SimpleNamespace, feature_size: int = 1, feature_names: dict = None
-    ):
-        super().__init__(agent, 1, feature_names)
-
-    def state_to_feature(
-        self, agent: SimpleNamespace, game_state: dict
-    ) -> FeatureSpace:
-
-        if len(game_state["others"]) == 0:
-            return [1]
-
-        positions = np.array([agent[3] for agent in game_state["others"]])
-        self_pos = np.array(game_state["self"][3])
-
-        dist = np.min(np.sum(np.abs(positions - self_pos), axis=1))
-        max_dist = 30
-
-        return [dist / max_dist]

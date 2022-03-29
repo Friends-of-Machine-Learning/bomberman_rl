@@ -1,6 +1,7 @@
 import pickle
 from collections import deque
 from collections import namedtuple
+from typing import Deque
 from typing import List
 
 import numpy as np
@@ -18,8 +19,8 @@ Transition = namedtuple(
 )
 
 # Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 800 * 4  # keep only ... last transitions
-END_TRANSITION_HISTORY_SIZE = 20 * 4  # keep only ... last transitions
+TRANSITION_HISTORY_SIZE = 800  # keep only ... last transitions
+END_TRANSITION_HISTORY_SIZE = 200  # keep only ... last transitions
 RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
 
 # Events
@@ -38,20 +39,13 @@ def setup_training(self):
     """
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
-    # self.begin_transition = []
     self.custom_events = [
         ev.UselessBombEvent(),
         ev.PlacedGoodBombEvent(),
         ev.AvoidDeathEvent(),
-        ev.AwayFromSuicideEvent(),
-        ev.MoveTowardsCrateEvent(),
-        ev.MoveTowardsCoinEvent(),
+        ev.NewFieldEvent(),
     ]
-    self.transitions_for_action = {action: [] for action in ACTIONS}
-    self.end_transitions_for_action = {action: [] for action in ACTIONS}
-
     self.transitions = []
-    self.end_transitions = []
 
 
 def game_events_occurred(
@@ -81,15 +75,14 @@ def game_events_occurred(
         f'Encountered game event(s) {", ".join(map(repr, events))} in step {new_game_state["step"]}'
     )
 
-    if old_game_state is None:
+    if old_game_state is None or new_game_state is None:
         return
-
     for custom_event in self.custom_events:
         custom_event.game_events_occurred(
             old_game_state, self_action, new_game_state, events
         )
-
-    self.transitions_for_action[self_action].append(
+    # state_to_features is defined in callbacks.py
+    self.transitions.append(
         Transition(
             self_action,
             state_to_features(self, old_game_state),
@@ -101,8 +94,8 @@ def game_events_occurred(
     )
 
     if (
-        len(self.transitions) > 3
-        and OPPOSITE_DIRECTION.get(self_action, None) == self.transitions[-2].action
+        len(self.transitions) > 2
+        and OPPOSITE_DIRECTION[self_action] == self.transitions[-2].action
     ):
         events.append(BACKTRACK_EVENT)
 
@@ -139,11 +132,10 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     self.logger.debug(
         f'Encountered event(s) {", ".join(map(repr, events))} in final step'
     )
-
     for custom_event in self.custom_events:
         custom_event.game_events_occurred(last_game_state, last_action, None, events)
 
-    self.end_transitions_for_action[last_action].append(
+    self.transitions.append(
         Transition(
             last_action,
             state_to_features(self, last_game_state),
@@ -154,55 +146,68 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         )
     )
 
+    ############# training #################
+
+    gamma = 0.8
+    alpha = 0.05
+
+    rewards = [x.reward for x in self.transitions]
+
+    rewards = np.array(rewards)
+    q_vals = []
+
+    weighting = np.array([1, gamma, gamma ** 2])
+    for i in range(len(rewards) - 2):
+        q_vals.append(np.sum(rewards[i : i + 3] * weighting))
+
+    q_vals.append(np.sum(rewards[-2:] * weighting[0:2]))
+    q_vals.append(rewards[-1])
+
+    for i in range(len(rewards) - 3):
+        q_vals[i] += q_func(self.model, self.means, [self.transitions[i + 3].feature])[
+            0
+        ]
+
+    # Call Q-Function for each action, and its transitions
+    transition_for_action = {}
+    for transition, q_val in zip(self.transitions, q_vals):
+        transition_for_action.setdefault(transition.action, []).append(
+            (transition.feature, q_val)
+        )
+
+    for action in ACTIONS:
+        q_function_train(
+            self,
+            transition_for_action.get(action, []),
+            ACTION_TO_INDEX[action],
+            gamma,
+            alpha,
+        )
+
+    self.transitions = []
+
     if last_game_state["round"] % 10 == 0:
-        feature_size = sum(f.get_feature_size() for f in self.features_used)
-        for tree in self.model:
-            tree.fit(np.zeros((1, feature_size)), [0])
-        # try to converge the forest to the q function
-        for _ in range(10):
-            for action in ACTIONS:
-                q_function_train(
-                    self,
-                    self.transitions_for_action[action],
-                    self.end_transitions_for_action[action],
-                    ACTION_TO_INDEX[action],
-                )
 
         # Store the model
         with open("my-saved-model.pt", "wb") as file:
-            pickle.dump(self.model, file)
-
-    if last_game_state["round"] % 20 == 0:
-        for action in ACTIONS:
-            if len(self.transitions_for_action[action]) > 10:
-                start_throwaway = int(np.sqrt(len(self.transitions_for_action[action])))
-                self.transitions_for_action[action] = self.transitions_for_action[
-                    action
-                ][start_throwaway:]
-
-            if len(self.end_transitions_for_action[action]) > 10:
-                start_throwaway = int(
-                    np.sqrt(len(self.end_transitions_for_action[action]))
-                )
-                self.end_transitions_for_action[
-                    action
-                ] = self.end_transitions_for_action[action][start_throwaway:]
+            pickle.dump((self.model, self.means), file)
 
 
 # cache in global space, no need to construct each time
 game_rewards = {
     # GOOD
     e.COIN_COLLECTED: 5,
-    e.CRATE_DESTROYED: 1,
+    str(ev.DestroyedAnyCrate()): 2,
+    e.MOVED_UP: 0.5,
+    e.MOVED_DOWN: 0.5,
+    e.MOVED_LEFT: 0.5,
+    e.MOVED_RIGHT: 0.5,
+    e.BOMB_DROPPED: 0.5,
     e.KILLED_OPPONENT: 10,
-    str(ev.AvoidDeathEvent()): 0.5,
-    str(ev.PlacedGoodBombEvent()): 0.5,
-    str(ev.MoveTowardsCrateEvent()): 0.5,
-    str(ev.MoveTowardsCoinEvent()): 0.5,
     # BAD
-    e.KILLED_SELF: -10,
+    e.GOT_KILLED: -7,
+    e.KILLED_SELF: -6,
     e.INVALID_ACTION: -1,
-    str(ev.AwayFromSuicideEvent()): 0.2,
 }
 
 
@@ -225,32 +230,39 @@ def reward_from_events(self, events: List[str]) -> int:
 
 def q_function_train(
     self,
-    transitions: List[Transition],
-    end_transitions: List[Transition],
+    transitions_qvals,
     action_index: int,
-    gamma: float = 0.9,
+    gamma: float = 0.8,
     alpha: float = 0.075,
 ) -> None:
     model = self.model
-    if not transitions:
+    if not transitions_qvals:
         return
 
-    rewards = np.array([x.reward for x in transitions])
-    states_old = np.array([x.feature for x in transitions])
-    states_new = np.array([x.next_feature for x in transitions])
-    states_end = np.array([x.feature for x in end_transitions])
-    q_vals_end = np.array([x.reward for x in end_transitions])
+    states = np.array([pair[0] for pair in transitions_qvals])
+    q_vals = np.array([pair[1] for pair in transitions_qvals])
 
-    q_vals = rewards + gamma * q_func(model, states_new)
+    # if len(states == 1):
+    # states = np.array([states])
+    # q_vals = np.array([q_vals])
 
-    if len(states_end.shape) > 1:
-        q_vals = np.concatenate((q_vals, q_vals_end))
-        states_old = np.concatenate((states_old, states_end))
+    self.means[action_index] = (
+        self.n_mean_instances[action_index] * self.means[action_index] + np.sum(q_vals)
+    ) / (self.n_mean_instances[action_index] + len(q_vals))
 
-    model[action_index].fit(states_old, q_vals)
+    self.n_mean_instances[action_index] += len(q_vals)
+
+    q_vals = q_vals.astype("float64")
+    q_vals -= self.means[action_index]
+
+    beta = model[action_index]
+
+    model[action_index] = beta + alpha * np.mean(
+        states * (q_vals - states @ beta)[:, None], axis=0
+    )
 
     self.model = model
 
 
-def q_func(model, state) -> np.ndarray:
-    return np.max([forest.predict(state) for forest in model], axis=0)
+def q_func(model: np.ndarray, means, state) -> np.ndarray:
+    return np.max(state @ model.T + means, axis=1)
