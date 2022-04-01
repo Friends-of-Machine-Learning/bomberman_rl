@@ -46,6 +46,7 @@ def setup_training(self):
         ev.NewFieldEvent(),
     ]
     self.transitions = []
+    self.memory = deque(maxlen=500)
 
 
 def game_events_occurred(
@@ -145,11 +146,16 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             reward_from_events(self, events),
         )
     )
+    sum = 0
+    for trans in self.transitions:
+        sum += trans.reward
+    with open("game_rewards.txt", "a") as file:
+        file.write(f"{sum}\n")
 
     ############# training #################
 
     gamma = 0.8
-    alpha = 0.05
+    alpha = 0.0001
 
     rewards = [x.reward for x in self.transitions]
 
@@ -183,6 +189,9 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
             gamma,
             alpha,
         )
+
+    with open("means.txt", "a") as file:
+        file.write(" ".join([str(val) for val in self.means]) + "\n")
 
     self.transitions = []
 
@@ -232,30 +241,58 @@ def q_function_train(
     self,
     transitions_qvals,
     action_index: int,
-    gamma: float = 0.8,
-    alpha: float = 0.075,
+    gamma: float,
+    alpha: float,
 ) -> None:
     model = self.model
     if not transitions_qvals:
         return
 
-    states = np.array([pair[0] for pair in transitions_qvals])
-    q_vals = np.array([pair[1] for pair in transitions_qvals])
+    # states = np.array([pair[0] for pair in transitions_qvals])
+    # q_vals = np.array([pair[1] for pair in transitions_qvals])
 
+    states = [pair[0] for pair in transitions_qvals]
+    q_vals = [pair[1] for pair in transitions_qvals]
+
+    mem_states = [
+        t.feature for t in self.memory if ACTION_TO_INDEX[t.action] == action_index
+    ]
+    if len(mem_states) > 0:
+        mem_q_vals = np.array(
+            [
+                t.reward
+                for t in self.memory
+                if ACTION_TO_INDEX[t.action] == action_index
+            ],
+            dtype=float,
+        )
+        mem_q_vals += q_func(self.model, self.means, np.array(mem_states))
+        mem_q_vals = [a for a in mem_q_vals]
+
+        states.extend(mem_states)
+        q_vals.extend(mem_q_vals)
+
+    states = np.array(states, dtype=float)
+    q_vals = np.array(q_vals, dtype=float)
     # if len(states == 1):
     # states = np.array([states])
     # q_vals = np.array([q_vals])
 
-    self.means[action_index] = (
-        self.n_mean_instances[action_index] * self.means[action_index] + np.sum(q_vals)
-    ) / (self.n_mean_instances[action_index] + len(q_vals))
+    # self.means[action_index] = (
+    #    self.n_mean_instances[action_index] * self.means[action_index] + np.sum(q_vals)
+    # ) / (self.n_mean_instances[action_index] + len(q_vals))
 
-    self.n_mean_instances[action_index] += len(q_vals)
+    self.means[action_index] += alpha * (np.mean(q_vals) - self.means[action_index])
+
+    # self.n_mean_instances[action_index] += len(q_vals)
 
     q_vals = q_vals.astype("float64")
     q_vals -= self.means[action_index]
 
     beta = model[action_index]
+    to_remember = np.argmax(np.abs(q_vals - states @ beta))
+    if to_remember < len(transitions_qvals):
+        self.memory.append(self.transitions[to_remember])
 
     model[action_index] = beta + alpha * np.mean(
         states * (q_vals - states @ beta)[:, None], axis=0
