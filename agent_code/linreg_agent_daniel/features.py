@@ -1,3 +1,4 @@
+import random
 from abc import ABC
 from abc import abstractmethod
 from types import SimpleNamespace
@@ -248,8 +249,8 @@ class BFSCrateFeature(BaseFeature):
         u, r, d, l = self.wall_in_dir.state_to_feature(agent, game_state)
 
         # If Wall in Move Direction return 0, as we already stand in front of the wall
-        # if OmegaMovementFeature.mov2_equal_mov4((x, y), (u, r, d, l)):
-        # return 0, 0
+        if OmegaMovementFeature.mov2_equal_mov4((x, y), (u, r, d, l)):
+            return 0, 0
         return x, y
 
 
@@ -494,9 +495,7 @@ class ClosestSafeSpaceDirection(BaseFeature):
 
         field = game_state["field"].copy()
         bombs = game_state["bombs"]
-        if bombs:
-            for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+
         others = game_state["others"]
         if others:
             for ox, oy in [other[-1] for other in others]:
@@ -533,6 +532,10 @@ class ClosestSafeSpaceDirection(BaseFeature):
                     explosionmask[x + i, y] += self.bomb_val
                 else:
                     break
+
+        if bombs:
+            for (bx, by), t in bombs:
+                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
 
         if explosionmask[sx, sy] == 0:
             return 0, 0
@@ -622,40 +625,6 @@ class NextToCrateFeature(BaseFeature):
         return np.array([0])
 
 
-class NextToOpponentFeature(BaseFeature):
-    """
-    Check if a opponent is next to the agent, if so return 1 else 0
-    """
-
-    _feature_names = {(1,): "True", (0,): "False"}
-
-    def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 1, self._feature_names)
-
-    def state_to_feature(
-        self, agent: SimpleNamespace, game_state: dict
-    ) -> FeatureSpace:
-        field = game_state["field"]
-        pos = game_state["self"][3]
-        sy, sx = pos
-
-        place_bomb = np.array([1])
-
-        if len(game_state["others"]) == 0:
-            return [0]
-
-        positions = np.array([agent[3] for agent in game_state["others"]])
-
-        dist = np.min(np.linalg.norm(positions - pos, axis=1))
-
-        if dist == 1:
-            return place_bomb
-
-        return [0]
-
-        return np.array([0])
-
-
 class InstantDeathDirectionsFeatures(BaseFeature):
     """
     Check for every direction if a step would be lethal
@@ -679,26 +648,29 @@ class InstantDeathDirectionsFeatures(BaseFeature):
 
             # up
             for i in range(s.BOMB_POWER + 1):
-                if field[x, y + i] != -1:
-                    next_explosion_map[x, y + i] = 4
-                else:
-                    break
-            # down
-            for i in range(s.BOMB_POWER + 1):
                 if field[x, y - i] != -1:
                     next_explosion_map[x, y - i] = 4
                 else:
                     break
-            # left
-            for i in range(s.BOMB_POWER + 1):
-                if field[x - i, y] != -1:
-                    next_explosion_map[x - i, y] = 4
-                else:
-                    break
+
             # right
             for i in range(s.BOMB_POWER + 1):
                 if field[x + i, y] != -1:
                     next_explosion_map[x + i, y] = 4
+                else:
+                    break
+
+            # down
+            for i in range(s.BOMB_POWER + 1):
+                if field[x, y + i] != -1:
+                    next_explosion_map[x, y + i] = 4
+                else:
+                    break
+
+            # left
+            for i in range(s.BOMB_POWER + 1):
+                if field[x - i, y] != -1:
+                    next_explosion_map[x - i, y] = 4
                 else:
                     break
 
@@ -904,7 +876,7 @@ class BombCloseToEnemyFeature(BaseFeature):
             return [0]
 
         for epos in [enemy[-1] for enemy in enemies]:
-            if sum(abs(val1 - val2) for val1, val2 in zip(pos, epos)) < 6:
+            if sum(abs(val1 - val2) for val1, val2 in zip(pos, epos)) < 4:
                 return [1]
 
         return [0]
@@ -935,10 +907,19 @@ class OmegaMovementFeature(BaseFeature):
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
     ) -> FeatureSpace:
+
+        others = game_state["others"]
+        if others:
+            others = [other_agent[-1] for other_agent in others]
+        sx, sy = game_state["self"][3]
+
+        crate_count = game_state["field"]
+        crate_count = np.count_nonzero(crate_count == 1)
+
         c_x, c_y = self.coin_feature.state_to_feature(agent, game_state)
         cr_x, cr_y = self.crate_feature.state_to_feature(agent, game_state)
         r_x, r_y = self.runaway_feature.state_to_feature(agent, game_state)
-        a_x, a_y = self.runaway_feature.state_to_feature(agent, game_state)
+        a_x, a_y = self.enemy_find_feature.state_to_feature(agent, game_state)
         u, r, d, l = self.wall_in_direction_feature.state_to_feature(agent, game_state)
         du, dr, dd, dl, ds = self.instant_death_direction_feature.state_to_feature(
             agent, game_state
@@ -948,24 +929,51 @@ class OmegaMovementFeature(BaseFeature):
         if r_x or r_y:
             return r_x, r_y
 
+        mov4_death = (du, dr, dd, dl)
+        mov4_wall = (u, r, d, l)
+
         # Go to Coins
         if c_x or c_y:
-            if OmegaMovementFeature.mov2_equal_mov4(
-                (c_x, c_y), (u, r, d, l)
-            ) or OmegaMovementFeature.mov2_equal_mov4((c_x, c_y), (du, dr, dd, dl)):
+            # If coin is in wall stop
+            if OmegaMovementFeature.mov2_equal_mov4((c_x, c_y), mov4_wall) and not ds:
                 return 0, 0
-            return c_x, c_y
+            # Coin direction is not direct death, do the move
+            if not OmegaMovementFeature.mov2_equal_mov4(
+                (c_x, c_y), mov4_death
+            ) and not OmegaMovementFeature.mov2_equal_mov4((c_x, c_y), mov4_wall):
+                return c_x, c_y
+
         # Close the gap to enemies
         if a_x or a_y:
-            if OmegaMovementFeature.mov2_equal_mov4(
-                (a_x, a_y), (u, r, d, l)
-            ) or OmegaMovementFeature.mov2_equal_mov4((a_x, a_y), (du, dr, dd, dl)):
+            new_pos = (sx + a_x, sy + a_y)
+            if new_pos in others and not ds:
                 return 0, 0
 
-        # Try bombing a crate
-        if OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), (du, dr, dd, dl)):
-            return 0, 0
-        return cr_x, cr_y
+            # Dont follow other agents into a wall
+            if OmegaMovementFeature.mov2_equal_mov4((a_x, a_y), mov4_wall) and not ds:
+                return 0, 0
+            # Only follow other agents if not death
+            if not OmegaMovementFeature.mov2_equal_mov4(
+                (a_x, a_y), mov4_death
+            ) and not OmegaMovementFeature.mov2_equal_mov4((a_x, a_y), mov4_wall):
+                return a_x, a_y
+
+        if crate_count or (cr_x or cr_y):
+            # Try bombing a crate
+            if OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), mov4_wall) and not ds:
+                return 0, 0
+            # If direction to crate is not death, do it
+            if not OmegaMovementFeature.mov2_equal_mov4(
+                (cr_x, cr_y), mov4_death
+            ) and not OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), mov4_wall):
+                return cr_x, cr_y
+
+        for dir in DIRECTION_MAP.values():
+            if not OmegaMovementFeature.mov2_equal_mov4(
+                dir, mov4_wall
+            ) and not OmegaMovementFeature.mov2_equal_mov4(dir, mov4_death):
+                return dir
+        return 0, 0
 
     @staticmethod
     def mov2_equal_mov4(mov2: Tuple[int, int], mov4: Tuple[int, int, int, int]) -> bool:
@@ -1119,7 +1127,7 @@ class ClosestEnemyDistance(BaseFeature):
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
     ) -> FeatureSpace:
-
+        max_distance = 30
         if len(game_state["others"]) == 0:
             return [1]
 
@@ -1127,6 +1135,5 @@ class ClosestEnemyDistance(BaseFeature):
         self_pos = np.array(game_state["self"][3])
 
         dist = np.min(np.sum(np.abs(positions - self_pos), axis=1))
-        max_dist = 30
 
-        return [dist / max_dist]
+        return [dist / max_distance]

@@ -27,21 +27,20 @@ def setup(self):
     self.features_used = [
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        features.BombCrateFeature(self),
-        features.WallInDirectionFeature(self),
-        features.ClosestSafeSpaceDirection(self),
-        features.BFSAgentsFeature(self),
-        features.ClosestEnemyDistance(self),
-        features.InstantDeathDirectionsFeatures(self),
-        features.ShouldDropBombFeature(self),
-        features.NextToOpponentFeature(self),
-        features.NextToCrateFeature(self),
         features.CloseCrateCountFeature(self),
         features.CanPlaceBombFeature(self),
+        features.ClosestSafeSpaceDirection(self),
+        features.NextToCrateFeature(self),
+        features.InstantDeathDirectionsFeatures(self),
+        features.DangerZoneFeature(self),
         features.BombIsSuicideFeature(self),
+        features.SeeDistanceDirectionsFeature(self),
+        features.CollisionZoneFeature(self),
     ]
 
-    if self.train or not os.path.isfile("my-saved-model.pt"):
+    keep = False
+
+    if not keep and (self.train or not os.path.isfile("my-saved-model.pt")):
         self.logger.info("Setting up model from scratch.")
 
         feature_size = sum(f.get_feature_size() for f in self.features_used)
