@@ -29,6 +29,13 @@ DIRECTION_MAP = {
     DirectionEnum.DOWN: (0, 1),
     DirectionEnum.LEFT: (-1, 0),
 }
+
+DIRECTION_MAPSTR = {
+    "UP": (0, -1),
+    "RIGHT": (1, 0),
+    "DOWN": (0, 1),
+    "LEFT": (-1, 0),
+}
 OPPOSITE_DIRECTION = {
     "UP": "DOWN",
     "DOWN": "UP",

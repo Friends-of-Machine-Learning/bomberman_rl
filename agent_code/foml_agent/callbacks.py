@@ -25,12 +25,7 @@ def setup(self):
     """
     self.debug: bool = False
     self.features_used = [
-        features.BFSCoinFeature(self),
-        features.BFSCrateFeature(self),
-        features.ClosestSafeSpaceDirection(self),
-        features.BFSAgentsFeature(self),
-        features.ClosestEnemyDistance(self),
-        features.InstantDeathDirectionsFeatures(self),
+        features.OmegaMovementFeature(self),
         features.ShouldDropBombFeature(self),
     ]
 
