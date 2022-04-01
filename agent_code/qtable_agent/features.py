@@ -215,11 +215,17 @@ class BFSCoinFeature(BaseFeature):
         if len(coin_pos) == 0:
             return np.zeros(self.feature_size)
 
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
+        others = game_state["others"]
+        if others:
+            for ox, oy in [other[-1] for other in others]:
+                field[ox, oy] = -1
+
         field[coin_pos[:, 0], coin_pos[:, 1]] = self.coin_val
-
-        for (x, y), _ in game_state["bombs"]:
-            field[x, y] = -1
-
         self_pos = game_state["self"][3]
         return BFS(self_pos, field, self.coin_val)
 
@@ -231,17 +237,30 @@ class BFSCrateFeature(BaseFeature):
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 2, feature_dims=3)
+        self.wall_in_dir = WallInDirectionFeature(agent)
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
     ) -> FeatureSpace:
         field = game_state["field"].copy()
-
-        for (x, y), _ in game_state["bombs"]:
-            field[x, y] = -1
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
+        others = game_state["others"]
+        if others:
+            for ox, oy in [other[-1] for other in others]:
+                field[ox, oy] = -1
 
         self_pos = game_state["self"][3]
-        return BFS(self_pos, field, 1)
+        x, y = BFS(self_pos, field, 1)
+        u, r, d, l = self.wall_in_dir.state_to_feature(agent, game_state)
+
+        # If Wall in Move Direction return 0, as we already stand in front of the wall
+        if OmegaMovementFeature.mov2_equal_mov4((x, y), (u, r, d, l)):
+            return 0, 0
+        return x, y
 
 
 class BombCrateFeature(BaseFeature):
@@ -287,6 +306,54 @@ class BombCrateFeature(BaseFeature):
                 return self.can_place
 
         return np.array([0])
+
+
+class CloseCrateCountFeature(BaseFeature):
+    """
+    Return the amount of bombable crates for Up Right Down Left
+    """
+
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 4, feature_dims=5)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        field = game_state["field"]
+        pos = game_state["self"][3]
+        x, y = pos
+
+        ret = [0, 0, 0, 0]
+
+        # up
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y - i] == -1:
+                break
+            elif field[x, y - i] == 1:
+                ret[0] += 1
+
+        # right
+        for i in range(s.BOMB_POWER + 1):
+            if field[x + i, y] == -1:
+                break
+            elif field[x + i, y] == 1:
+                ret[1] += 1
+
+        # down
+        for i in range(s.BOMB_POWER + 1):
+            if field[x, y + i] == -1:
+                break
+            elif field[x, y + i] == 1:
+                ret[2] += 1
+
+        # left
+        for i in range(s.BOMB_POWER + 1):
+            if field[x - i, y] == -1:
+                break
+            elif field[x - i, y] == 1:
+                ret[3] += 1
+
+        return ret
 
 
 class BombDistanceDirectionsFeature(BaseFeature):
@@ -436,9 +503,15 @@ class ClosestSafeSpaceDirection(BaseFeature):
             return 0, 0
 
         field = game_state["field"].copy()
-
-        for (x, y), _ in game_state["bombs"]:
-            field[x, y] = -1
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
+        others = game_state["others"]
+        if others:
+            for ox, oy in [other[-1] for other in others]:
+                field[ox, oy] = -1
 
         pos = game_state["self"][3]
         sx, sy = pos
@@ -478,7 +551,7 @@ class ClosestSafeSpaceDirection(BaseFeature):
         return BFS(pos, explosionmask, 0, self.bomb_val)
 
 
-class BombIsSuicide(BaseFeature):
+class BombIsSuicideFeature(BaseFeature):
     """
     Uses BFS to see if we will die.
     """
@@ -642,17 +715,17 @@ class NextToCrateFeature(BaseFeature):
     ) -> FeatureSpace:
         field = game_state["field"]
         pos = game_state["self"][3]
-        sx, sy = pos
+        sy, sx = pos
 
         place_bomb = np.array([1])
 
-        if field[sx + 1, sy] == 1:
+        if 1 in field[sy, sx + 1 : sx + 2]:  # +1 and +2 because right side is exclusive
             return place_bomb
-        if field[sx - 1, sy] == 1:
+        if 1 in field[sy, sx - 1 : sx]:
             return place_bomb
-        if field[sx, sy + 1] == 1:
+        if 1 in field[sy + 1 : sy + 2, sx]:
             return place_bomb
-        if field[sx, sy - 1] == 1:
+        if 1 in field[sy - 1 : sy, sx]:
             return place_bomb
 
         return np.array([0])
@@ -787,6 +860,29 @@ class DangerZoneFeature(BaseFeature):
         return res
 
 
+class BombCloseToEnemyFeature(BaseFeature):
+    """
+    Returns 1 if enemy is close to agent, may drop a bomb or something, idk
+    """
+
+    def __init__(self, agent: SimpleNamespace, feature_size: int = 1):
+        super().__init__(agent, feature_size, feature_dims=2)
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        enemies = game_state["others"]
+        pos = game_state["self"][3]
+        if not enemies:
+            return [0]
+
+        for epos in [enemy[-1] for enemy in enemies]:
+            if sum(abs(val1 - val2) for val1, val2 in zip(pos, epos)) < 6:
+                return [1]
+
+        return [0]
+
+
 class OmegaMovementFeature(BaseFeature):
     """
     Manages multiple movement related features.
@@ -801,10 +897,11 @@ class OmegaMovementFeature(BaseFeature):
     }
 
     def __init__(self, agent: SimpleNamespace):
-        super().__init__(agent, 2, self._feature_names)
+        super().__init__(agent, 2, self._feature_names, feature_dims=3)
         self.coin_feature = BFSCoinFeature(agent)
         self.crate_feature = BFSCrateFeature(agent)
         self.runaway_feature = ClosestSafeSpaceDirection(agent)
+        self.enemy_find_feature = BFSAgentsFeature(agent)
         self.instant_death_direction_feature = InstantDeathDirectionsFeatures(agent)
         self.wall_in_direction_feature = WallInDirectionFeature(agent)
 
@@ -814,6 +911,7 @@ class OmegaMovementFeature(BaseFeature):
         c_x, c_y = self.coin_feature.state_to_feature(agent, game_state)
         cr_x, cr_y = self.crate_feature.state_to_feature(agent, game_state)
         r_x, r_y = self.runaway_feature.state_to_feature(agent, game_state)
+        a_x, a_y = self.enemy_find_feature.state_to_feature(agent, game_state)
         u, r, d, l = self.wall_in_direction_feature.state_to_feature(agent, game_state)
         du, dr, dd, dl, ds = self.instant_death_direction_feature.state_to_feature(
             agent, game_state
@@ -822,15 +920,23 @@ class OmegaMovementFeature(BaseFeature):
         # Most important, do not die
         if r_x or r_y:
             return r_x, r_y
+
+        # Go to Coins
         if c_x or c_y:
             if OmegaMovementFeature.mov2_equal_mov4(
                 (c_x, c_y), (u, r, d, l)
             ) or OmegaMovementFeature.mov2_equal_mov4((c_x, c_y), (du, dr, dd, dl)):
                 return 0, 0
             return c_x, c_y
-        if OmegaMovementFeature.mov2_equal_mov4(
-            (cr_x, cr_y), (u, r, d, l)
-        ) or OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), (du, dr, dd, dl)):
+        # Close the gap to enemies
+        if a_x or a_y:
+            if OmegaMovementFeature.mov2_equal_mov4(
+                (a_x, a_y), (u, r, d, l)
+            ) or OmegaMovementFeature.mov2_equal_mov4((a_x, a_y), (du, dr, dd, dl)):
+                return 0, 0
+
+        # Try bombing a crate
+        if OmegaMovementFeature.mov2_equal_mov4((cr_x, cr_y), (du, dr, dd, dl)):
             return 0, 0
         return cr_x, cr_y
 
@@ -856,6 +962,8 @@ class ShouldDropBombFeature(BaseFeature):
         super().__init__(agent, 1, feature_names)
         self.can_drop_f = CanPlaceBombFeature(agent)
         self.close_to_crate = BombCrateFeature(agent)
+        self.close_to_enemy = BombCloseToEnemyFeature(agent)
+        self.bomb_suicide = BombIsSuicideFeature(agent)
 
     def state_to_feature(
         self, agent: SimpleNamespace, game_state: dict
@@ -863,4 +971,36 @@ class ShouldDropBombFeature(BaseFeature):
         if not bool(self.can_drop_f.state_to_feature(agent, game_state)[0]):
             return [0]
 
+        if bool(self.bomb_suicide.state_to_feature(agent, game_state)[0]):
+            return [0]
+
+        if bool(self.close_to_enemy.state_to_feature(agent, game_state)[0]):
+            return [1]
+
         return self.close_to_crate.state_to_feature(agent, game_state)
+
+
+class BFSAgentsFeature(BaseFeature):
+    def __init__(self, agent: SimpleNamespace):
+        super().__init__(agent, 2, feature_dims=3)
+        self.agent_val = 5
+
+    def state_to_feature(
+        self, agent: SimpleNamespace, game_state: dict
+    ) -> FeatureSpace:
+        field = game_state["field"].copy()
+        other_agents = game_state["others"]
+        bombs = game_state["bombs"]
+        if bombs:
+            for (bx, by), t in bombs:
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
+
+        if len(other_agents) == 0:
+            return np.zeros(self.feature_size)
+
+        for epos in [other_agent[-1] for other_agent in other_agents]:
+            field[epos[0], epos[1]] = self.agent_val
+
+        self_pos = game_state["self"][3]
+        return BFS(self_pos, field, self.agent_val, 1)

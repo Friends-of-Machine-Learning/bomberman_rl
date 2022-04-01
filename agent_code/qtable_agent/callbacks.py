@@ -33,7 +33,7 @@ def setup(self):
         features.CanPlaceBombFeature(self),
         features.ClosestSafeSpaceDirection(self),
         features.InstantDeathDirectionsFeatures(self),
-        features.BombIsSuicide(self),
+        features.BombIsSuicideFeature(self),
     ]
 
     self.keep_model: bool = False

@@ -39,7 +39,15 @@ def setup_training(self):
     # Example: Setup an array that will note transition tuples
     # (s, a, r, s')
     # self.begin_transition = []
-    self.custom_events = [ev.UselessBombEvent()]
+    self.custom_events = [
+        ev.UselessBombEvent(),
+        ev.PlacedGoodBombEvent(),
+        ev.AvoidDeathEvent(),
+        ev.AwayFromSuicideEvent(),
+        ev.MoveTowardsCrateEvent(),
+        ev.MoveTowardsCoinEvent(),
+        ev.PogBomb(),
+    ]
     self.transitions = []
     self.end_transitions = []
 
@@ -81,7 +89,7 @@ def game_events_occurred(
 
     old_state = state_to_features(self, old_game_state)
     new_state = state_to_features(self, new_game_state)
-    rewards = (reward_from_events(self, events),)
+    rewards = reward_from_events(self, events)
 
     update_q_table(self, old_state, new_state, rewards, ACTION_TO_INDEX[self_action])
 
@@ -117,26 +125,29 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
         pickle.dump(self.model, file)
 
 
+game_rewards = {
+    # GOOD
+    e.COIN_COLLECTED: 4,
+    e.KILLED_OPPONENT: 5,
+    str(ev.DestroyedAnyCrate()): 2,
+    str(ev.AvoidDeathEvent()): 0.5,
+    str(ev.MoveTowardsCrateEvent()): 0.01,
+    str(ev.MoveTowardsCoinEvent()): 0.05,
+    str(ev.PogBomb()): 0.5,
+    str(ev.AwayFromSuicideEvent()): 0.2,
+    # BAD
+    e.KILLED_SELF: -6,
+    e.INVALID_ACTION: -5,
+    e.WAITED: -0.1,
+}
+
+
 def reward_from_events(self, events: List[str]) -> int:
     """
-    *This is not a required function, but an idea to structure your code.*
-
-    Here you can modify the rewards your agent get so as to en/discourage
+        Here you can modify the rewards your agent get so as to en/discourage
     certain behavior.
     """
-    game_rewards = {
-        # GOOD
-        e.COIN_COLLECTED: 5,
-        e.CRATE_DESTROYED: 2,
-        # e.BOMB_DROPPED: 0.5,
-        # BAD
-        e.KILLED_SELF: -10,
-        e.INVALID_ACTION: -0.1,
-    }
-    reward_sum = 0
-    for event in events:
-        if event in game_rewards:
-            reward_sum += game_rewards[event]
+    reward_sum = sum(game_rewards.get(event, 0) for event in events)
     self.logger.info(f"Awarded {reward_sum} for events {', '.join(events)}")
     return reward_sum
 
@@ -147,14 +158,14 @@ def update_q_table(
     new_state,
     reward,
     action_index: int,
-    lr: float = 0.001,
-    gamma: float = 0.9,
+    lr: float = 0.01,
+    gamma: float = 0.6,
 ) -> None:
     Q = self.model
 
     q_old_index = tuple(list(old_state) + [action_index])
-    Q[q_old_index] = Q[q_old_index] + lr * (
-        reward + gamma * np.max(Q[tuple(list(new_state))]) - Q[q_old_index]
+    Q[q_old_index] = (1 - lr) * Q[q_old_index] + lr * (
+        reward + gamma * np.max(Q[tuple(list(new_state))])
     )
 
     self.model = Q
@@ -165,11 +176,10 @@ def end_round_q_table(
     old_state,
     reward,
     action_index: int,
-    lr: float = 0.001,
+    lr: float = 0.01,
 ) -> None:
     Q = self.model
 
     q_old_index = tuple(list(old_state) + [action_index])
-    Q[q_old_index] = Q[q_old_index] + lr * (reward - Q[q_old_index])
-
+    Q[q_old_index] = (1 - lr) * Q[q_old_index] + lr * reward
     self.model = Q

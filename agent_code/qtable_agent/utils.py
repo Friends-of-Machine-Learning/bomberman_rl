@@ -29,6 +29,13 @@ DIRECTION_MAP = {
     DirectionEnum.DOWN: (0, 1),
     DirectionEnum.LEFT: (-1, 0),
 }
+
+DIRECTION_MAPSTR = {
+    "UP": (0, -1),
+    "RIGHT": (1, 0),
+    "DOWN": (0, 1),
+    "LEFT": (-1, 0),
+}
 OPPOSITE_DIRECTION = {
     "UP": "DOWN",
     "DOWN": "UP",
@@ -80,16 +87,13 @@ def BFS(
             break
         else:
             current_pos = queue.pop(0)
-            # print(f'checking {current_pos} with value {field[current_pos[0], current_pos[1]]}')
 
     # Goal could not be found
     if field[current_pos[0], current_pos[1]] != goal:
         return (0, 0)
 
-    # print(f'goal found at {current_pos} with value {field[current_pos[0], current_pos[1]]}')
-
     # We stand on the goal, don't move
-    if current_pos[0] == self_pos[0] and current_pos[1] == self_pos[1]:
+    if np.all(current_pos == self_pos):
         return (0, 0)
 
     while np.any(parents[current_pos[0], current_pos[1]] != self_pos):

@@ -28,18 +28,17 @@ def setup(self):
 
     self.features_used = [
         # BFS/Movement Features
+        features.ClosestSafeSpaceDirection(self),
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        features.ClosestSafeSpaceDirection(self),
-        features.InstantDeathDirectionsFeatures(self),
-        features.CollisionZoneFeature(self),
-        features.NextToCrateFeature(self),
-        features.CanPlaceBombFeature(self),
-        # Danger Awareness
-        features.BombViewFeature(self),
-        features.DangerZoneFeature(self),
-        features.SeeDistanceDirectionsFeature(self),
         features.BFSAgentsFeature(self),
+        features.WallInDirectionFeature(self),
+        # Bomb Info
+        features.CanPlaceBombFeature(self),
+        features.BombCloseToEnemyFeature(self),
+        # Danger Awareness
+        features.BombIsSuicideFeature(self),
+        features.InstantDeathDirectionsFeatures(self),
     ]
 
     self.keep_model: bool = False
@@ -53,9 +52,7 @@ def setup(self):
             with open("my-saved-model.pt", "rb") as file:
                 self.model = pickle.load(file)
         else:
-            self.model = [
-                RandomForestRegressor(n_estimators=10, max_depth=30) for _ in ACTIONS
-            ]
+            self.model = [RandomForestRegressor(n_estimators=20) for _ in ACTIONS]
 
             for tree in self.model:
                 tree.fit(np.zeros((1, feature_size)), [0])
