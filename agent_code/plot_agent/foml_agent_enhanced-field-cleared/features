@@ -1,0 +1,9 @@
+features.BFSCoinFeature(self),
+        features.BFSCrateFeature(self),
+        features.ClosestSafeSpaceDirection(self),
+        features.BFSAgentsFeature(self),
+        features.InstantDeathDirectionsFeatures(self),
+        features.ShouldDropBombFeature(self),
+
+LR = 0.001
+Gamme = 0.9
