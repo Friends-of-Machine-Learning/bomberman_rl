@@ -24,7 +24,7 @@ def generate_reward_plot(out_dir, reward_file):
         width=WIDTH,
         height=HEIGHT,
     )
-    fig.write_image(out_dir + reward_file.split("/")[-2] + ".svg")
+    fig.write_image(out_dir + reward_file.split("/")[-2] + "_rewards.svg")
 
 
 def generate_mean_plot(out_dir, mean_file):
@@ -45,7 +45,7 @@ def generate_mean_plot(out_dir, mean_file):
         height=HEIGHT,
     )
 
-    fig.write_image(out_dir + mean_file.split("/")[-2] + ".svg")
+    fig.write_image(out_dir + mean_file.split("/")[-2] + "_mean.svg")
 
 
 if __name__ == "__main__":
