@@ -10,24 +10,17 @@ from . import events as ev
 from .callbacks import ACTIONS
 from .callbacks import state_to_features
 from .utils import ACTION_TO_INDEX
-from .utils import OPPOSITE_DIRECTION
 
 # This is only an example!
 Transition = namedtuple(
     "Transition", ("action", "feature", "next_feature", "steps", "rounds", "reward")
 )
 
-# Hyper parameters -- DO modify
+# Hyper parameters
 TRANSITION_HISTORY_SIZE = 400 * 3  # keep only ... last transitions
 END_TRANSITION_HISTORY_SIZE = (
     TRANSITION_HISTORY_SIZE // 400
 )  # keep only ... last transitions
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
-
-# Events
-PLACEHOLDER_EVENT = "PLACEHOLDER"
-BACKTRACK_EVENT = "BACKTRACK"
-RUNAWAY_EVENT = "RUNAWAY"
 
 
 def setup_training(self):
@@ -38,8 +31,7 @@ def setup_training(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
+
     self.custom_events = [
         ev.UselessBombEvent(),
         ev.PlacedGoodBombEvent(),
@@ -68,8 +60,6 @@ def game_events_occurred(
     settings.py to see what events are tracked. You can hand out rewards to your
     agent based on these events and your knowledge of the (new) game state.
 
-    This is *one* of the places where you could update your agent.
-
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     :param old_game_state: The state that was passed to the last call of `act`.
     :param self_action: The action that you took.
@@ -97,28 +87,6 @@ def game_events_occurred(
             reward_from_events(self, events),
         )
     )
-
-    if (
-        len(self.transitions) > 2
-        and OPPOSITE_DIRECTION[self_action] == self.transitions[-2].action
-    ):
-        events.append(BACKTRACK_EVENT)
-
-    # Compare Bomb distance to agent from old and new game state
-    # If agent moved away from bomb add event
-    if old_game_state["bombs"] and new_game_state["bombs"]:
-        old_bombs = [(x, y) for (x, y), _ in old_game_state["bombs"]]
-        con_old = np.subtract(old_bombs, old_game_state["self"][3])
-        dist_old = np.linalg.norm(con_old, axis=1)
-        old_mean = np.mean(dist_old)
-
-        new_bombs = [(x, y) for (x, y), _ in new_game_state["bombs"]]
-        con_new = np.subtract(new_bombs, new_game_state["self"][3])
-        dist_new = np.linalg.norm(con_new, axis=1)
-        new_mean = np.mean(dist_new)
-
-        if new_mean > old_mean:
-            events.append(RUNAWAY_EVENT)
 
 
 def end_of_round(self, last_game_state: dict, last_action: str, events: List[str]):

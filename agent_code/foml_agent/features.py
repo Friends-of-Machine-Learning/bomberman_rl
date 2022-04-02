@@ -210,7 +210,8 @@ class BFSCoinFeature(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
         others = game_state["others"]
         if others:
             for ox, oy in [other[-1] for other in others]:
@@ -237,7 +238,8 @@ class BFSCrateFeature(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
         others = game_state["others"]
         if others:
             for ox, oy in [other[-1] for other in others]:
@@ -496,7 +498,8 @@ class ClosestSafeSpaceDirection(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
         others = game_state["others"]
         if others:
             for ox, oy in [other[-1] for other in others]:
@@ -1064,7 +1067,8 @@ class BFSAgentsFeature(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
 
         if len(other_agents) == 0:
             return np.zeros(self.feature_size)

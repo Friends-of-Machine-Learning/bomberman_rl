@@ -116,3 +116,5 @@ def BFS(
     # Y coordinate Down
     if diff[1] > 0:
         return DIRECTION_MAP[DirectionEnum.DOWN]
+
+    return (0, 0)

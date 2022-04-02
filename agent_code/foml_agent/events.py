@@ -6,7 +6,6 @@ import numpy as np
 
 import events as e
 from . import features
-from .utils import ACTION_TO_INDEX
 from .utils import DIRECTION_MAPSTR
 
 

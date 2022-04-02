@@ -23,7 +23,8 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    self.debug: bool = False
+    # If debug True, print out the features used for each action.
+    self.debug: bool = False  # type: ignore
     self.features_used = [
         features.OmegaMovementFeature(self),
         features.ShouldDropBombFeature(self),
@@ -53,7 +54,7 @@ def act(self, game_state: dict) -> str:
     :return: The action to take as a string.
     """
 
-    # todo Exploration vs exploitation
+    # Exploration vs exploitation
     random_prob = 0.1
     if self.train and random.random() < random_prob:
         self.logger.debug("Choosing action purely at random.")
@@ -63,18 +64,14 @@ def act(self, game_state: dict) -> str:
     features: np.ndarray = state_to_features(self, game_state, True)
     self.logger.debug("Querying model for action.")
 
-    self.last_action = np.zeros(6)
+    # Get the action that maximizes the model's prediction for the given features.
     action_index = np.argmax(features @ self.model.T + self.means)
     next_action = ACTIONS[action_index]
-    self.last_action[action_index] = 1
-
     return next_action
 
 
-def state_to_features(self, game_state: dict, debug=False) -> np.array:
+def state_to_features(self, game_state: dict, debug=False) -> np.ndarray:
     """
-    *This is not a required function, but an idea to structure your code.*
-
     Converts the game state to the input of your model, i.e.
     a feature vector.
 
@@ -82,7 +79,9 @@ def state_to_features(self, game_state: dict, debug=False) -> np.array:
     which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
     what it contains.
 
-    :param game_state:  A dictionary describing the current game board.
+    :param self: The same object that is passed to all of your callbacks.
+    :param game_state: The dictionary that describes everything on the board.
+    :param debug: If True, print out the features used for each action.
     :return: np.array
     """
     # This is the dict before the game begins and after it ends
@@ -94,7 +93,9 @@ def state_to_features(self, game_state: dict, debug=False) -> np.array:
     feature: features.BaseFeature
     feature_debug_text: list = []
 
+    # Loop over all features and get the feature vector.
     if self.debug and debug:
+        # If debug is True, print out the features used for each action.
         for feature in self.features_used:
             x = feature.state_to_feature(self, game_state)
             feature_debug_text.append(feature.feature_to_readable_name(x))
