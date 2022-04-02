@@ -1,3 +1,6 @@
+import glob
+import os
+
 import pandas as pd
 import plotly.express as px
 
@@ -28,11 +31,21 @@ def generate_reward_plot(out_dir, reward_file):
     df_rewards = pd.DataFrame(data=rewards, columns=["rewards"])
     fig = px.line(
         df_rewards,
-        title="Rewards per Round",
+        title="",
         labels={"value": "Rewards", "index": "Round"},
         template="presentation",
         width=WIDTH,
         height=HEIGHT,
+    )
+    fig.update_layout(
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1,
+            "xanchor": "right",
+            "x": 1,
+            "title_text": "",
+        }
     )
 
     fig.write_image(out_dir + reward_file.split("/")[-2] + "_rewards.svg")
@@ -55,11 +68,21 @@ def generate_mean_plot(out_dir, mean_file):
 
     fig = px.line(
         df_means,
-        title="Mean return per Action",
+        title="",
         labels={"value": "Mean return", "index": "Round"},
         template="presentation",
         width=WIDTH,
         height=HEIGHT,
+    )
+    fig.update_layout(
+        legend={
+            "orientation": "h",
+            "yanchor": "bottom",
+            "y": 1,
+            "xanchor": "right",
+            "x": 1,
+            "title_text": "",
+        }
     )
 
     fig.write_image(out_dir + mean_file.split("/")[-2] + "_mean.svg")
@@ -67,14 +90,11 @@ def generate_mean_plot(out_dir, mean_file):
 
 if __name__ == "__main__":
     # create plots folder if it does not yet exist.
-    import os
 
     if not os.path.exists("plots"):
         os.makedirs("plots")
 
     # generate mean plots for every means.txt file in all subdirectories.
-    import glob
-
     for mean_file in glob.glob("**/plot_agent/**/means.txt", recursive=True):
         generate_mean_plot("plots/", mean_file)
 
