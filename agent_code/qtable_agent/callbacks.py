@@ -3,7 +3,6 @@ import pickle
 import random
 
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
 
 from . import features
 
@@ -24,8 +23,9 @@ def setup(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    self.feature_print: bool = False
+    self.feature_print: bool = False  # type: ignore
 
+    # This agents features
     self.features_used = [
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
@@ -36,8 +36,9 @@ def setup(self):
         features.BombIsSuicideFeature(self),
     ]
 
-    self.keep_model: bool = False
+    self.keep_model: bool = False  # type: ignore
 
+    # Create new model if it does not exist or in training mode
     if self.train or not os.path.isfile("my-saved-model.pt"):
         self.logger.info("Setting up model from scratch.")
 
@@ -52,11 +53,11 @@ def setup(self):
             feature_dims.append(len(ACTIONS))
             self.model = np.zeros(tuple(feature_dims))
 
+    # Load model if it exists and not in training mode
     else:
         self.logger.info("Loading model from saved state.")
         with open("my-saved-model.pt", "rb") as file:
             self.model = pickle.load(file)
-    self.last_action = np.zeros(6)
 
 
 def act(self, game_state: dict) -> str:
@@ -78,42 +79,43 @@ def act(self, game_state: dict) -> str:
     features: np.ndarray = state_to_features(self, game_state, True)
     self.logger.debug("Querying model for action.")
 
-    self.last_action = np.zeros(6)
+    # Get the action with the highest probability
     action_index = np.argmax(self.model[tuple(features)])
     next_action = ACTIONS[action_index]
-    self.last_action[action_index] = 1
-
     return next_action
 
 
-def state_to_features(self, game_state: dict, temp: bool = False) -> np.array:
+def state_to_features(self, game_state: dict, temp: bool = False) -> np.ndarray:
     """
-    *This is not a required function, but an idea to structure your code.*
-
-    Converts the game state to the input of your model, i.e.
-    a feature vector.
+    Converts the game state to a feature vector.
 
     You can find out about the state of the game environment via game_state,
     which is a dictionary. Consult 'get_state_for_agent' in environment.py to see
     what it contains.
 
-    :param game_state:  A dictionary describing the current game board.
-    :return: np.array
+    :param self: The same object that is passed to all of your callbacks.
+    :param game_state: The dictionary that describes everything on the board.
+    :param temp: If true, self.print_features will be used to determine if features should be printed.
+    :return: The feature vector as a numpy array.
     """
     # This is the dict before the game begins and after it ends
     if game_state is None:
         return None
 
     x_feature = []
-
     feature: features.BaseFeature
-    feature_debug_text: list = []
-    for feature in self.features_used:
-        x = feature.state_to_feature(self, game_state)
-        feature_debug_text.append(feature.feature_to_readable_name(x))
-        x_feature.append(x)
-
+    # Iterate over all features and get the feature vector, print it if in debug mode
     if self.feature_print and temp:
+        feature_debug_text: list = []
+        for feature in self.features_used:
+            x = feature.state_to_feature(self, game_state)
+            feature_debug_text.append(feature.feature_to_readable_name(x))
+            x_feature.append(x)
         print(", ".join(feature_debug_text))
+
+    # Else just get the feature vector
+    else:
+        for feature in self.features_used:
+            x_feature.append(feature.state_to_feature(self, game_state))
 
     return np.concatenate(x_feature).astype(int)

@@ -6,7 +6,6 @@ import numpy as np
 
 import events as e
 from . import features
-from .utils import ACTION_TO_INDEX
 from .utils import DIRECTION_MAPSTR
 
 
@@ -162,7 +161,7 @@ class DestroyedAnyCrate(BaseEvent):
             events.append(str(self))
 
 
-class PogBomb(BaseEvent):
+class SmartBombEvent(BaseEvent):
     def __init__(self):
         super().__init__()
 

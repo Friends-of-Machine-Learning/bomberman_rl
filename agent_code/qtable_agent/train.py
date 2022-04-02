@@ -1,5 +1,4 @@
 import pickle
-from collections import deque
 from collections import namedtuple
 from typing import List
 
@@ -7,25 +6,12 @@ import numpy as np
 
 import events as e
 from . import events as ev
-from .callbacks import ACTIONS
 from .callbacks import state_to_features
 from .utils import ACTION_TO_INDEX
-from .utils import OPPOSITE_DIRECTION
 
-# This is only an example!
 Transition = namedtuple(
     "Transition", ("action", "feature", "next_feature", "steps", "rounds", "reward")
 )
-
-# Hyper parameters -- DO modify
-TRANSITION_HISTORY_SIZE = 800 * 4  # keep only ... last transitions
-END_TRANSITION_HISTORY_SIZE = 20 * 4  # keep only ... last transitions
-RECORD_ENEMY_TRANSITIONS = 1.0  # record enemy transitions with probability ...
-
-# Events
-PLACEHOLDER_EVENT = "PLACEHOLDER"
-BACKTRACK_EVENT = "BACKTRACK"
-RUNAWAY_EVENT = "RUNAWAY"
 
 
 def setup_training(self):
@@ -36,9 +22,7 @@ def setup_training(self):
 
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     """
-    # Example: Setup an array that will note transition tuples
-    # (s, a, r, s')
-    # self.begin_transition = []
+    # The registered custom events for this agent
     self.custom_events = [
         ev.UselessBombEvent(),
         ev.PlacedGoodBombEvent(),
@@ -46,7 +30,7 @@ def setup_training(self):
         ev.AwayFromSuicideEvent(),
         ev.MoveTowardsCrateEvent(),
         ev.MoveTowardsCoinEvent(),
-        ev.PogBomb(),
+        ev.SmartBombEvent(),
     ]
     self.transitions = []
     self.end_transitions = []
@@ -67,8 +51,6 @@ def game_events_occurred(
     settings.py to see what events are tracked. You can hand out rewards to your
     agent based on these events and your knowledge of the (new) game state.
 
-    This is *one* of the places where you could update your agent.
-
     :param self: This object is passed to all callbacks and you can set arbitrary values.
     :param old_game_state: The state that was passed to the last call of `act`.
     :param self_action: The action that you took.
@@ -82,11 +64,13 @@ def game_events_occurred(
     if old_game_state is None:
         return
 
+    # Call all custom events
     for custom_event in self.custom_events:
         custom_event.game_events_occurred(
             old_game_state, self_action, new_game_state, events
         )
 
+    # Update Q-table
     old_state = state_to_features(self, old_game_state)
     new_state = state_to_features(self, new_game_state)
     rewards = reward_from_events(self, events)
@@ -102,24 +86,24 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
     This is similar to game_events_occurred. self.events will contain all events that
     occurred during your agent's final step.
 
-    This is *one* of the places where you could update your agent.
-    This is also a good place to store an agent that you updated.
-
     :param self: The same object that is passed to all of your callbacks.
     """
     self.logger.debug(
         f'Encountered event(s) {", ".join(map(repr, events))} in final step'
     )
 
+    # Call all custom events
     for custom_event in self.custom_events:
         custom_event.game_events_occurred(last_game_state, last_action, None, events)
 
+    # Update Q-table
     end_round_q_table(
         self,
         state_to_features(self, last_game_state),
         reward_from_events(self, events),
         ACTION_TO_INDEX[last_action],
     )
+
     # Store the model
     with open("my-saved-model.pt", "wb") as file:
         pickle.dump(self.model, file)
@@ -133,7 +117,7 @@ game_rewards = {
     str(ev.AvoidDeathEvent()): 0.5,
     str(ev.MoveTowardsCrateEvent()): 0.01,
     str(ev.MoveTowardsCoinEvent()): 0.05,
-    str(ev.PogBomb()): 0.5,
+    str(ev.SmartBombEvent()): 0.5,
     str(ev.AwayFromSuicideEvent()): 0.2,
     # BAD
     e.KILLED_SELF: -6,
@@ -144,7 +128,7 @@ game_rewards = {
 
 def reward_from_events(self, events: List[str]) -> int:
     """
-        Here you can modify the rewards your agent get so as to en/discourage
+    Here you can modify the rewards your agent get so as to en/discourage
     certain behavior.
     """
     reward_sum = sum(game_rewards.get(event, 0) for event in events)
