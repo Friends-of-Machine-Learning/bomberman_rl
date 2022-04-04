@@ -1,6 +1,6 @@
-from ..foml_agent.callbacks import act as act_other
-from ..foml_agent.callbacks import setup as setup_other
-from ..foml_agent.callbacks import state_to_features as state_to_features_other
+from ..qtable_agent.callbacks import act as act_other
+from ..qtable_agent.callbacks import setup as setup_other
+from ..qtable_agent.callbacks import state_to_features as state_to_features_other
 
 
 def setup(self):

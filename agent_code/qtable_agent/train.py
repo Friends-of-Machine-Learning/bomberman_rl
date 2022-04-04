@@ -111,7 +111,7 @@ def end_of_round(self, last_game_state: dict, last_action: str, events: List[str
 
 game_rewards = {
     # GOOD
-    e.COIN_COLLECTED: 4,
+    e.COIN_COLLECTED: 3,
     e.KILLED_OPPONENT: 5,
     str(ev.DestroyedAnyCrate()): 2,
     str(ev.AvoidDeathEvent()): 0.5,

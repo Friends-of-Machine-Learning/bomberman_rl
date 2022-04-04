@@ -25,22 +25,15 @@ def setup(self):
     """
     self.debug: bool = False
     self.features_used = [
-        # features.BFSCoinFeature(self),
-        # features.BFSCrateFeature(self),
-        # features.ClosestSafeSpaceDirection(self),
-        # features.BFSAgentsFeature(self),
-        # features.InstantDeathDirectionsFeatures(self),
-        # features.ShouldDropBombFeature(self),
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        features.BombCrateFeature(self),
-        features.CanPlaceBombFeature(self),
         features.ClosestSafeSpaceDirection(self),
+        features.BFSAgentsFeature(self),
         features.InstantDeathDirectionsFeatures(self),
-        features.BombIsSuicideFeature(self),
+        features.ShouldDropBombFeature(self),
     ]
 
-    if self.train or not os.path.isfile("my-saved-model.pt"):
+    if self.train or not os.path.isfile("clear_field.pt"):
         self.logger.info("Setting up model from scratch.")
 
         feature_size = sum(f.get_feature_size() for f in self.features_used)
@@ -49,7 +42,7 @@ def setup(self):
         # self.n_mean_instances = np.zeros(6)
     else:
         self.logger.info("Loading model from saved state.")
-        with open("my-saved-model.pt", "rb") as file:
+        with open("clear_field.pt", "rb") as file:
             self.model, self.means = pickle.load(file)
     self.last_action = np.zeros(6)
 
@@ -82,7 +75,7 @@ def act(self, game_state: dict) -> str:
     return next_action
 
 
-def state_to_features(self, game_state: dict, debug=False) -> np.array:
+def state_to_features(self, game_state: dict, debug=False) -> np.ndarray:
     """
     *This is not a required function, but an idea to structure your code.*
 
