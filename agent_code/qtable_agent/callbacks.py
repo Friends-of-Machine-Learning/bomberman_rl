@@ -31,7 +31,7 @@ def setup(self):
         features.BFSCrateFeature(self),
         features.BombCrateFeature(self),
         features.CanPlaceBombFeature(self),
-        features.ClosestSafeSpaceDirection(self),
+        features.ClosestSafeSpaceDirectionFeature(self),
         features.InstantDeathDirectionsFeatures(self),
         features.BombIsSuicideFeature(self),
     ]

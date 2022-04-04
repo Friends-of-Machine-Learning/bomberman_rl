@@ -46,7 +46,7 @@ def setup_training(self):
         ev.AwayFromSuicideEvent(),
         ev.MoveTowardsCrateEvent(),
         ev.MoveTowardsCoinEvent(),
-        ev.PogBomb(),
+        ev.SmartBombEvent(),
     ]
     self.transitions_for_action = {action: [] for action in ACTIONS}
     self.end_transitions_for_action = {action: [] for action in ACTIONS}
@@ -200,7 +200,7 @@ game_rewards = {
     str(ev.PlacedGoodBombEvent()): 0.5,
     str(ev.MoveTowardsCrateEvent()): 0.5,
     str(ev.MoveTowardsCoinEvent()): 0.5,
-    str(ev.PogBomb()): 0.5,
+    str(ev.SmartBombEvent()): 0.5,
     # BAD
     e.KILLED_SELF: -2,
     e.INVALID_ACTION: -1,

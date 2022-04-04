@@ -478,7 +478,7 @@ class CanPlaceBombFeature(BaseFeature):
         return [int(game_state["self"][2])]
 
 
-class ClosestSafeSpaceDirection(BaseFeature):
+class ClosestSafeSpaceDirectionFeature(BaseFeature):
     """
     Uses BFS to find the closest safe space, returns the direction if safe space found.
     """
@@ -488,7 +488,7 @@ class ClosestSafeSpaceDirection(BaseFeature):
         DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
         DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
         DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
-        (0, 0): "Wait WTF",
+        (0, 0): "Wait",
     }
 
     def __init__(self, agent: SimpleNamespace):
@@ -561,7 +561,7 @@ class BombIsSuicideFeature(BaseFeature):
         DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
         DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
         DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
-        (0, 0): "Wait WTF",
+        (0, 0): "Wait",
     }
 
     def __init__(self, agent: SimpleNamespace):
@@ -893,14 +893,14 @@ class OmegaMovementFeature(BaseFeature):
         DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
         DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
         DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
-        (0, 0): "Wait WTF",
+        (0, 0): "Wait",
     }
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 2, self._feature_names, feature_dims=3)
         self.coin_feature = BFSCoinFeature(agent)
         self.crate_feature = BFSCrateFeature(agent)
-        self.runaway_feature = ClosestSafeSpaceDirection(agent)
+        self.runaway_feature = ClosestSafeSpaceDirectionFeature(agent)
         self.enemy_find_feature = BFSAgentsFeature(agent)
         self.instant_death_direction_feature = InstantDeathDirectionsFeatures(agent)
         self.wall_in_direction_feature = WallInDirectionFeature(agent)

@@ -161,7 +161,7 @@ class DestroyedAnyCrate(BaseEvent):
             events.append(str(self))
 
 
-class PogBomb(BaseEvent):
+class SmartBombEvent(BaseEvent):
     def __init__(self):
         super().__init__()
 

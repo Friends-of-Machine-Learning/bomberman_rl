@@ -29,7 +29,7 @@ def setup(self):
         features.BFSCrateFeature(self),
         features.CloseCrateCountFeature(self),
         features.CanPlaceBombFeature(self),
-        features.ClosestSafeSpaceDirection(self),
+        features.ClosestSafeSpaceDirectionFeature(self),
         features.NextToCrateFeature(self),
         features.InstantDeathDirectionsFeatures(self),
         features.DangerZoneFeature(self),

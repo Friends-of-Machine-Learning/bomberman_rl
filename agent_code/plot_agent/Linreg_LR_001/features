@@ -1,6 +1,6 @@
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
         features.BombCrateFeature(self),
-        features.ClosestSafeSpaceDirection(self),
+        features.ClosestSafeSpaceDirectionFeature(self),
         features.InstantDeathDirectionsFeatures(self),
         features.ShouldDropBombFeature(self),

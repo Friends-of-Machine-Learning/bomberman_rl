@@ -38,7 +38,7 @@ def setup_training(self):
         ev.AvoidDeathEvent(),
         ev.NewFieldEvent(),
         ev.DestroyedAnyCrate(),
-        ev.PogBomb(),
+        ev.SmartBombEvent(),
         ev.FollowOmegaEvent(),
     ]
     self.transitions = deque(maxlen=TRANSITION_HISTORY_SIZE)

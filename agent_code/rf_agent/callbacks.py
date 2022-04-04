@@ -28,7 +28,7 @@ def setup(self):
 
     self.features_used = [
         # BFS/Movement Features
-        features.ClosestSafeSpaceDirection(self),
+        features.ClosestSafeSpaceDirectionFeature(self),
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
         features.BFSAgentsFeature(self),

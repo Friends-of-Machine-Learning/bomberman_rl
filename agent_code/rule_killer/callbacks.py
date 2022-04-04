@@ -27,7 +27,7 @@ def setup(self):
     self.features_used = [
         features.BFSCoinFeature(self),
         features.BFSCrateFeature(self),
-        features.ClosestSafeSpaceDirection(self),
+        features.ClosestSafeSpaceDirectionFeature(self),
         features.BFSAgentsFeature(self),
         features.InstantDeathDirectionsFeatures(self),
         features.CanPlaceBombFeature(self),

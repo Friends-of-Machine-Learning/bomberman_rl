@@ -206,7 +206,8 @@ class BFSCoinFeature(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
 
         if len(coin_pos) == 0:
             return np.zeros(self.feature_size)
@@ -232,7 +233,8 @@ class BFSCrateFeature(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
 
         self_pos = game_state["self"][3]
         x, y = BFS(self_pos, field, 1)
@@ -459,7 +461,7 @@ class CanPlaceBombFeature(BaseFeature):
         return [int(game_state["self"][2])]
 
 
-class ClosestSafeSpaceDirection(BaseFeature):
+class ClosestSafeSpaceDirectionFeature(BaseFeature):
     """
     Uses BFS to find the closest safe space, returns the direction if safe space found.
     """
@@ -469,7 +471,7 @@ class ClosestSafeSpaceDirection(BaseFeature):
         DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
         DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
         DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
-        (0, 0): "Wait WTF",
+        (0, 0): "Wait",
     }
 
     def __init__(self, agent: SimpleNamespace):
@@ -487,7 +489,8 @@ class ClosestSafeSpaceDirection(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
 
         pos = game_state["self"][3]
         sx, sy = pos
@@ -750,14 +753,14 @@ class OmegaMovementFeature(BaseFeature):
         DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
         DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
         DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
-        (0, 0): "Wait WTF",
+        (0, 0): "Wait",
     }
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 2, self._feature_names)
         self.coin_feature = BFSCoinFeature(agent)
         self.crate_feature = BFSCrateFeature(agent)
-        self.runaway_feature = ClosestSafeSpaceDirection(agent)
+        self.runaway_feature = ClosestSafeSpaceDirectionFeature(agent)
         self.instant_death_direction_feature = InstantDeathDirectionsFeatures(agent)
         self.wall_in_direction_feature = WallInDirectionFeature(agent)
 

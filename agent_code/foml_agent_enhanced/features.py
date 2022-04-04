@@ -210,7 +210,8 @@ class BFSCoinFeature(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
         others = game_state["others"]
         if others:
             for ox, oy in [other[-1] for other in others]:
@@ -237,7 +238,8 @@ class BFSCrateFeature(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
         others = game_state["others"]
         if others:
             for ox, oy in [other[-1] for other in others]:
@@ -468,7 +470,7 @@ class CanPlaceBombFeature(BaseFeature):
         return [int(game_state["self"][2])]
 
 
-class ClosestSafeSpaceDirection(BaseFeature):
+class ClosestSafeSpaceDirectionFeature(BaseFeature):
     """
     Uses BFS to find the closest safe space, returns the direction if safe space found.
     """
@@ -478,7 +480,7 @@ class ClosestSafeSpaceDirection(BaseFeature):
         DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
         DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
         DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
-        (0, 0): "Wait WTF",
+        (0, 0): "Wait",
     }
 
     def __init__(self, agent: SimpleNamespace):
@@ -496,7 +498,8 @@ class ClosestSafeSpaceDirection(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
         others = game_state["others"]
         if others:
             for ox, oy in [other[-1] for other in others]:
@@ -763,7 +766,7 @@ class BombIsSuicideFeature(BaseFeature):
         DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
         DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
         DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
-        (0, 0): "Wait WTF",
+        (0, 0): "Wait",
     }
 
     def __init__(self, agent: SimpleNamespace):
@@ -886,14 +889,14 @@ class OmegaMovementFeature(BaseFeature):
         DIRECTION_MAP[DirectionEnum.DOWN]: "Down",
         DIRECTION_MAP[DirectionEnum.LEFT]: "Left",
         DIRECTION_MAP[DirectionEnum.RIGHT]: "Right",
-        (0, 0): "Wait WTF",
+        (0, 0): "Wait",
     }
 
     def __init__(self, agent: SimpleNamespace):
         super().__init__(agent, 2, self._feature_names)
         self.coin_feature = BFSCoinFeature(agent)
         self.crate_feature = BFSCrateFeature(agent)
-        self.runaway_feature = ClosestSafeSpaceDirection(agent)
+        self.runaway_feature = ClosestSafeSpaceDirectionFeature(agent)
         self.enemy_find_feature = BFSAgentsFeature(agent)
         self.instant_death_direction_feature = InstantDeathDirectionsFeatures(agent)
         self.wall_in_direction_feature = WallInDirectionFeature(agent)
@@ -1064,7 +1067,8 @@ class BFSAgentsFeature(BaseFeature):
         bombs = game_state["bombs"]
         if bombs:
             for (bx, by), t in bombs:
-                field[bx, by] = -1  # We can't move over bombs, they are invalid fields
+                # We can't move over bombs, they are invalid fields
+                field[bx, by] = -1
 
         if len(other_agents) == 0:
             return np.zeros(self.feature_size)
